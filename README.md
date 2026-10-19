@@ -28,6 +28,9 @@ python scripts/check.py --scene assets/demo_scene_fixed.json --format md
 # 列出全部规则
 python scripts/check.py --list
 
+# 可选：启用八宅派命卦文化参考（默认关闭，不影响 18 条判定）
+python scripts/check.py --scene assets/demo_scene.json --culture --format md
+
 # JSON 输出（供上层程序消费）
 python scripts/check.py --scene assets/demo_scene.json
 ```
@@ -41,12 +44,14 @@ python scripts/check.py --scene assets/demo_scene.json
 ```
 SKILL.md                     主文件：工作流、三条红线、已知局限
 scripts/check.py             L1 判定引擎，18 条规则全实现，零依赖
+scripts/minggua.py           八宅派命卦（可选模块，独立于 18 条判定）
 references/
   ├── rules.md               18 条规则手册（判定/阈值/建议/依据）
   ├── evidence.md            出处证据链，按核对状态三级标注
   ├── parameters.md          参数表 + 国标对照
   ├── output-style.md        L3 表达层（语气分级 / 长短版 / 语言红线）
   ├── scene-schema.md        输入格式说明
+  ├── minggua.md             命卦模块：算法表、流派局限、接入方式
   └── interview.md           访谈执行手册（用于校准 severity）
 assets/
   ├── demo_scene.json        埋了 9 处典型问题
@@ -80,6 +85,27 @@ assets/
 部分条目原文讲的是**方位**，实现时转成了**几何关系**。典型例子是「厨灶必须居左位，不宜安在白虎方」：原典的"左/白虎方"是相对坐向的方位概念，本项目转译为"灶与水槽的操作间距"，并保留双属性标注 `ergonomic+culture`。
 
 **这是几何可判定转译，不是直译。** 引用时须说明这层关系，否则容易被指为曲解原典。
+
+## 关于生辰八字（可选模块）
+
+风水常被追问"不用合八字吗"。这块做成了**默认关闭的独立模块**，不混进 18 条判定。
+
+启用后做的是：按**八宅派**约定，用出生年份算命卦（含 5 黄男寄坤/女寄艮、立春近似校正），
+与宅向比对，得出"命与宅是否同组"。结果写在 `culture_reference` 字段。
+
+刻意不做的四件事，比做了什么更重要：
+
+- **不进 `violations`**，不计入"9 条需要调整"这类统计
+- **不生成改动建议**，不会出现"床头转向X方以合命卦"
+- **不做吉凶断言**，只说"该派认为相配/不相配"
+- **不隐藏局限**，四条局限随结果一起输出，不靠提示词"记得说"
+
+切开的理由：这 18 条每条都能用国标或人体工程学撑起第二条腿，命卦撑不起来。掺在一起，
+被问"这不就是算命吗"的时候，前面 18 条的论证会被一起拖下水。分开摆反而是加分项——
+可以主动说"我们区分了可验证的空间约束与不可验证的文化解释"。
+
+出处状态：🔶 **二手转引**。八宅派命卦说通常归于《八宅明镜》，本仓库未收录该书，
+算法依据是通行命卦表。引用时说"据八宅派通行说法"，**不要报书名页码**。详见 `references/minggua.md`。
 
 ## 已知局限
 

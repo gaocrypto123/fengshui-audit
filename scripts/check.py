@@ -24,6 +24,9 @@ import math
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import minggua  # noqa: E402  八宅派命卦（文化参考层，独立于 18 条判定）
+
 # ---------------------------------------------------------------- 常量
 
 # 参数表（单位：米 / 度）。修改此处即修改全库阈值，references/parameters.md 为人类可读版。
@@ -831,7 +834,7 @@ def _fill(template, labels):
     return out
 
 
-def run(scene_path, only=None, include_low=True):
+def run(scene_path, only=None, include_low=True, culture=False):
     data = json.loads(Path(scene_path).read_text(encoding="utf-8"))
     s = Scene(data)
     violations, passed, skipped = [], [], []
@@ -885,6 +888,15 @@ def run(scene_path, only=None, include_low=True):
     for v in violations:
         counts[v["severity"]] = counts.get(v["severity"], 0) + 1
 
+    # 文化参考层：与 violations 完全隔离，不参与上面的任何计数。
+    if culture:
+        culture_ref = minggua.check_owner(data.get("meta", {}).get("owner"), s)
+    else:
+        culture_ref = {
+            "enabled": False,
+            "reason": "文化参考模块未启用（默认关闭，加 --culture 开启）。",
+        }
+
     return {
         "scene": data.get("meta", {}).get("name", Path(scene_path).name),
         "rule_version": "v1.0",
@@ -898,6 +910,7 @@ def run(scene_path, only=None, include_low=True):
         "violations": violations,
         "passed_rules": passed,
         "skipped": skipped,
+        "culture_reference": culture_ref,
     }
 
 
@@ -926,6 +939,37 @@ def to_md(r):
         L.append("")
         for k in r["skipped"]:
             L.append("- %s %s：%s" % (k["rule_id"], k["name"], k["reason"]))
+
+    # 文化参考单独成段，与上面的空间判定用分隔线隔开。
+    c = r.get("culture_reference") or {}
+    if c.get("enabled") and c.get("available"):
+        L.append("")
+        L.append("---")
+        L.append("")
+        L.append("> 以下为文化参考，与上方空间判定无关，不参与检查计数。")
+        L.append("")
+        L.append("## 文化参考 · 八宅派命卦")
+        L.append("")
+        L.append(c["text"])
+        L.append("")
+        L.append("- 命卦：%s（%s）" % (c["ming_gua"]["name"], c["ming_gua"]["group"]))
+        L.append("- 宅向：坐%s朝%s（%s宅，%s）"
+                 % (c["house"]["sitting"], c["house"]["facing"],
+                    c["house"]["gua"], c["house"]["group"]))
+        if c["owner"].get("note"):
+            L.append("- 说明：%s" % c["owner"]["note"])
+        L.append("")
+        L.append("<details><summary>本段局限</summary>")
+        L.append("")
+        for x in c["limits"]:
+            L.append("- %s" % x)
+        L.append("")
+        L.append("</details>")
+    elif c.get("enabled"):
+        L.append("")
+        L.append("## 文化参考 · 未生成")
+        L.append("")
+        L.append("原因：%s" % c.get("reason", "未知"))
     return "\n".join(L)
 
 
@@ -936,6 +980,8 @@ def main():
     ap.add_argument("--format", default="json", choices=["json", "md"], help="输出格式")
     ap.add_argument("--only", help="只跑指定规则，逗号分隔，如 FS-BED-001,FS-KIT-001")
     ap.add_argument("--no-low", action="store_true", help="跳过 low 严重度规则")
+    ap.add_argument("--culture", action="store_true",
+                    help="启用八宅派命卦文化参考（独立模块，不进入违规统计，需 meta.owner）")
     ap.add_argument("--list", action="store_true", help="列出全部规则")
     args = ap.parse_args()
 
@@ -948,7 +994,7 @@ def main():
         ap.error("需要 --scene 参数（或用 --list 查看规则）")
 
     only = set(x.strip() for x in args.only.split(",")) if args.only else None
-    r = run(args.scene, only=only, include_low=not args.no_low)
+    r = run(args.scene, only=only, include_low=not args.no_low, culture=args.culture)
     text = to_md(r) if args.format == "md" else json.dumps(r, ensure_ascii=False, indent=2)
 
     if args.out:

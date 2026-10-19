@@ -3,7 +3,8 @@
     "name": "示例户型 · 两室一厅 80m²",
     "unit": "m",
     "origin": "southwest",
-    "note": "俯视平面。x 向右（东），y 向上（北）。用于自检与演示，非真实项目图纸。"
+    "note": "俯视平面。x 向右（东），y 向上（北）。用于自检与演示，非真实项目图纸。",
+    "owner": { "birth_year": 1998, "birth_md": "06-15", "gender": "female" }
   },
   "walls": [
     { "id": "W-S", "a": [0.0, 0.0], "b": [8.4, 0.0], "is_window": false },
