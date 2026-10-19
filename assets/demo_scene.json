@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "name": "示例户型 · 两室一厅 80m²",
+    "unit": "m",
+    "origin": "southwest",
+    "note": "俯视平面。x 向右（东），y 向上（北）。用于自检与演示，非真实项目图纸。"
+  },
+  "walls": [
+    { "id": "W-S", "a": [0.0, 0.0], "b": [8.4, 0.0], "is_window": false },
+    { "id": "W-E", "a": [8.4, 0.0], "b": [8.4, 9.6], "is_window": false },
+    { "id": "W-N", "a": [8.4, 9.6], "b": [0.0, 9.6], "is_window": false },
+    { "id": "W-W", "a": [0.0, 9.6], "b": [0.0, 0.0], "is_window": false },
+
+    { "id": "W-bed1-s", "a": [0.0, 6.0], "b": [3.6, 6.0], "is_window": false },
+    { "id": "W-bed1-e", "a": [3.6, 6.0], "b": [3.6, 9.6], "is_window": false },
+    { "id": "W-bath-w", "a": [3.2, 2.6], "b": [3.2, 4.4], "is_window": false },
+    { "id": "W-bath-n", "a": [3.2, 4.4], "b": [5.2, 4.4], "is_window": false },
+    { "id": "W-bath-e", "a": [5.2, 2.6], "b": [5.2, 4.4], "is_window": false },
+    { "id": "W-kit-w", "a": [5.2, 0.0], "b": [5.2, 3.4], "is_window": false },
+    { "id": "W-kit-n", "a": [5.2, 3.4], "b": [8.4, 3.4], "is_window": false },
+    { "id": "W-bed2-s", "a": [5.2, 4.4], "b": [8.4, 4.4], "is_window": false },
+
+    { "id": "WIN-liv-s", "a": [0.8, 0.0], "b": [2.8, 0.0], "is_window": true },
+    { "id": "WIN-bed1-n", "a": [1.0, 9.6], "b": [3.0, 9.6], "is_window": true },
+    { "id": "WIN-bed2-e", "a": [8.4, 7.0], "b": [8.4, 9.0], "is_window": true }
+  ],
+  "doors": [
+    { "id": "D-entry", "name": "入户门", "center": [4.2, 0.0], "normal": [0.0, 1.0], "width": 0.9, "is_entry": true },
+    { "id": "D-bath", "name": "卫生间门", "center": [4.2, 2.6], "normal": [0.0, -1.0], "width": 0.8 },
+    { "id": "D-bed1", "name": "主卧门", "center": [2.0, 6.0], "normal": [0.0, -1.0], "width": 0.9 },
+    { "id": "D-kit", "name": "厨房门", "center": [5.2, 1.8], "normal": [-1.0, 0.0], "width": 0.8 },
+    { "id": "D-bed2", "name": "次卧门", "center": [7.0, 4.4], "normal": [0.0, -1.0], "width": 0.8 }
+  ],
+  "beams": [
+    { "id": "BM-bed2", "name": "次卧横梁", "a": [5.2, 7.2], "b": [8.4, 7.2], "width": 0.3 }
+  ],
+  "furniture": [
+    {
+      "id": "BED-M",
+      "name": "主卧床",
+      "type": "bed",
+      "rect": { "cx": 1.8, "cy": 8.58, "len": 2.0, "wid": 1.8, "heading": 270 },
+      "height": 0.5
+    },
+    {
+      "id": "BED-S",
+      "name": "次卧床",
+      "type": "bed",
+      "rect": { "cx": 6.8, "cy": 8.0, "len": 2.0, "wid": 1.5, "heading": 0 },
+      "height": 0.5
+    },
+    {
+      "id": "SOFA",
+      "name": "沙发",
+      "type": "sofa",
+      "rect": { "cx": 1.6, "cy": 2.4, "len": 0.9, "wid": 2.2, "heading": 90 },
+      "height": 0.85
+    },
+    {
+      "id": "STOVE",
+      "name": "灶台",
+      "type": "stove",
+      "rect": { "cx": 7.2, "cy": 1.0, "len": 0.9, "wid": 0.6, "heading": 0 },
+      "height": 0.85
+    },
+    {
+      "id": "SINK",
+      "name": "水槽",
+      "type": "sink",
+      "rect": { "cx": 6.2, "cy": 1.0, "len": 0.8, "wid": 0.6, "heading": 0 },
+      "height": 0.85
+    },
+    {
+      "id": "MIRROR-bed1",
+      "name": "主卧穿衣镜",
+      "type": "mirror",
+      "rect": { "cx": 1.8, "cy": 6.8, "len": 0.6, "wid": 0.05, "heading": 90 },
+      "height": 1.8
+    },
+    {
+      "id": "MIRROR-entry",
+      "name": "玄关镜",
+      "type": "mirror",
+      "rect": { "cx": 3.0, "cy": 0.6, "len": 0.6, "wid": 0.05, "heading": 0 },
+      "height": 1.8
+    },
+    {
+      "id": "CAB-win",
+      "name": "客厅高柜",
+      "type": "wardrobe",
+      "rect": { "cx": 1.6, "cy": 0.3, "len": 1.2, "wid": 0.6, "heading": 0 },
+      "height": 2.0
+    }
+  ],
+  "rooms": [
+    { "id": "LIV", "name": "客厅", "rect": { "cx": 1.6, "cy": 3.0, "len": 3.2, "wid": 6.0, "heading": 90 } },
+    { "id": "BED1", "name": "主卧", "rect": { "cx": 1.8, "cy": 7.8, "len": 3.6, "wid": 3.6, "heading": 90 } },
+    { "id": "BED2", "name": "次卧", "rect": { "cx": 6.8, "cy": 7.0, "len": 3.2, "wid": 5.2, "heading": 90 } },
+    { "id": "KIT", "name": "厨房", "rect": { "cx": 6.8, "cy": 1.7, "len": 3.2, "wid": 3.4, "heading": 90 } },
+    { "id": "BATH", "name": "卫生间", "rect": { "cx": 4.2, "cy": 3.5, "len": 2.0, "wid": 1.8, "heading": 90 } }
+  ]
+}
