@@ -72,9 +72,11 @@ class TestDemoRegression(unittest.TestCase):
         self.assertEqual(self.fixed["summary"]["violations"], 1)
         self.assertEqual(self.fixed["violations"][0]["rule_id"], "FS-ENT-001")
 
-    def test_all_18_rules_accounted(self):
+    def test_all_rules_accounted(self):
         s = self.demo["summary"]
-        self.assertEqual(s["violations"] + s["passed"] + s["skipped"], 18)
+        total = s["violations"] + s["passed"] + s["skipped"]
+        self.assertEqual(total, len(check.RULES))  # v1.2 起为 20 条
+        self.assertEqual(len(check.RULES), 20)
 
 
 class TestV11Fixes(unittest.TestCase):
@@ -148,6 +150,89 @@ class TestV11Fixes(unittest.TestCase):
         self.assertTrue(hit, "demo 场景应包含卫生间门以支撑本测试")
         r = run_scene(d)
         self.assertTrue(any(v["rule_id"] == "FS-ENT-001" for v in r["violations"]))
+
+
+class TestV12Rules(unittest.TestCase):
+    """v1.2 新增规则：FS-KIT-004 灶台邻近卫生间门、FS-BED-007 卫生间门冲床。"""
+
+    def _scene_with_toilet_door(self, door_center, door_normal):
+        return {
+            "meta": {"name": "t"},
+            "walls": [{"id": "W1", "a": [0, 0], "b": [10, 0], "is_window": False}],
+            "doors": [{"id": "D-wc", "name": "卫生间门", "center": door_center,
+                       "normal": door_normal, "width": 0.8}],
+            "furniture": [
+                {"id": "ST", "name": "灶台", "type": "stove",
+                 "rect": {"cx": 2.0, "cy": 1.0, "len": 0.8, "wid": 0.6, "heading": 0},
+                 "height": 0.8},
+                {"id": "BD", "name": "床", "type": "bed",
+                 "rect": {"cx": 2.0, "cy": 2.5, "len": 2.0, "wid": 1.5, "heading": 0},
+                 "height": 0.5},
+            ],
+        }
+
+    def test_stove_near_toilet_door_hits(self):
+        d = self._scene_with_toilet_door([2.0, 0.0], [0.0, 1.0])
+        r = run_scene(d)
+        self.assertTrue(any(v["rule_id"] == "FS-KIT-004" for v in r["violations"]))
+
+    def test_stove_far_from_toilet_door_passes(self):
+        d = self._scene_with_toilet_door([9.0, 0.0], [0.0, 1.0])
+        r = run_scene(d)
+        self.assertFalse(any(v["rule_id"] == "FS-KIT-004" for v in r["violations"]))
+
+    def test_toilet_door_facing_bed_hits(self):
+        d = self._scene_with_toilet_door([1.3, 0.0], [0.0, 1.0])
+        r = run_scene(d)
+        self.assertTrue(any(v["rule_id"] == "FS-BED-007" for v in r["violations"]))
+
+
+class TestV12CultureModules(unittest.TestCase):
+    def test_lumanchi_lucky_and_unlucky(self):
+        import lumanchi
+        self.assertTrue(lumanchi.check(810)["lucky"])    # 本格
+        self.assertTrue(lumanchi.check(880)["lucky"])    # 财格
+        r = lumanchi.check(755)
+        self.assertFalse(r["lucky"])
+        self.assertGreater(r["nearest_lucky"], 0)
+
+    def test_lumanchi_deterministic(self):
+        import lumanchi
+        self.assertEqual(lumanchi.check(912), lumanchi.check(912))
+
+    def test_region_province_mapping(self):
+        import region
+        r = region.check_region("广东")
+        self.assertEqual(r["region"], "华南")
+        self.assertEqual(r["wuxing"], "火")
+        self.assertTrue(r["available"])
+
+    def test_region_unknown_is_unavailable(self):
+        import region
+        r = region.check_region("火星省")
+        self.assertFalse(r["available"])
+        self.assertTrue(r["reason"])
+
+    def test_minggua_lucky_directions_present(self):
+        d = json.loads((ASSETS / "demo_scene.json").read_text(encoding="utf-8"))
+        r = run_scene(d)  # run() 不带 culture 不含命卦；直接调模块
+        import minggua, check as ck
+        s = ck.Scene(d)
+        m = minggua.check_owner({"birth_year": 1998, "birth_md": "06-15",
+                                 "gender": "female"}, s)
+        self.assertIn("lucky_directions", m)
+        self.assertEqual(set(m["lucky_directions"]), {"生气", "天医", "延年", "伏位"})
+        self.assertIn("不构成任何布局或改动建议", m["text"])
+
+    def test_handover_cards_structure(self):
+        r = check.run(str(ASSETS / "demo_scene.json"))
+        cards = r["handover_cards"]
+        self.assertEqual(len(cards), 4)
+        all_items = [it["rule_id"] for c in cards for it in c["items"]]
+        self.assertEqual(len(all_items), 9)  # 每条违规恰好进一张卡
+        for c in cards:
+            for it in c["items"]:
+                self.assertIn("accept", it)
 
 
 if __name__ == "__main__":

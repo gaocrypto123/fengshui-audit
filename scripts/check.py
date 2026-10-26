@@ -28,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import minggua  # noqa: E402  八宅派命卦（文化参考层，独立于 18 条判定）
+import region  # noqa: E402  地域五行文化参考（文化参考层，独立于 18 条判定）
 
 # ---------------------------------------------------------------- 常量
 
@@ -51,6 +52,9 @@ PARAMS = {
     "BAND_WINDOW": 0.50,       # 窗前采光带深度
     "ANGLE_BACK_TO_BACK": 160.0,  # 两门"近似相对"的法线夹角下限（FS-ENT-001）
     "ANGLE_SAME_SIDE": 90.0,   # 判定门在灶台同侧的法线夹角上限（FS-KIT-002）
+    # v1.2 新增（依据见 references/evidence.md E7/E8 与国标条目）
+    "DIST_STOVE_TOILET": 2.00, # 灶台-卫生间门最小距离（FS-KIT-004）
+    "DIST_TOILET_BED": 2.00,   # 卫生间门-床最小距离（FS-BED-007）
 }
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -822,6 +826,58 @@ def r_liv002(s):
     return out or None
 
 
+def _toilet_doors(s):
+    """所有非入户的卫生间门（显式 room_type 优先，降级名称/ID 猜测）。"""
+    return [d for d in s.doors if not d["is_entry"] and _is_toilet_door(d)]
+
+
+def r_kit004(s):
+    """灶台邻近卫生间门：距离 < DIST_STOVE_TOILET 且视线通畅。
+
+    人因/卫生依据：卫生间湿度大、带菌气溶胶，灶台是食品加工区，
+    就近布置存在食品卫生隐患；文化侧对应「灶厕不相见」的通行讲究。
+    """
+    out = []
+    for st in s.of_type("stove"):
+        r = st["rect"]
+        for d in _toilet_doors(s):
+            dd = min(point_seg_dist(d["center"], p, q) for p, q in r.edges())
+            if dd >= PARAMS["DIST_STOVE_TOILET"]:
+                continue
+            if not s.los(d["center"], r.c):
+                continue
+            out.append({
+                "objects": [st["id"], d["id"]],
+                "detail": "灶台距卫生间门仅 %.2f m（阈值 %.2f m），且有视线连通"
+                          % (dd, PARAMS["DIST_STOVE_TOILET"]),
+                "measured": round(dd, 2),
+            })
+    return out or None
+
+
+def r_bed007(s):
+    """卫生间门冲床：门距床 < DIST_TOILET_BED，门视线锥罩住床，视线通畅。"""
+    out = []
+    for f in s.of_type("bed"):
+        r = f["rect"]
+        for d in _toilet_doors(s):
+            dd = min(point_seg_dist(d["center"], p, q) for p, q in r.edges())
+            if dd >= PARAMS["DIST_TOILET_BED"]:
+                continue
+            if not cone_hits_rect(d["center"], heading_of(d["normal"]),
+                                  PARAMS["ANGLE_DOOR_FAN"], r, PARAMS["DIST_TOILET_BED"]):
+                continue
+            if not s.los(d["center"], r.c):
+                continue
+            out.append({
+                "objects": [f["id"], d["id"]],
+                "detail": "卫生间门距床 %.2f m（阈值 %.2f m），开门视线锥内可见卧床"
+                          % (dd, PARAMS["DIST_TOILET_BED"]),
+                "measured": round(dd, 2),
+            })
+    return out or None
+
+
 # ---------------------------------------------------------------- 规则元数据
 
 RULES = [
@@ -879,7 +935,87 @@ RULES = [
     ("FS-LIV-002", "沙发正对大门", "living", "low", r_liv002,
      "沙发朝向偏转 ≥ 30° 或错位摆放。",
      "沙发正对大门，入户视线与气流直冲座位区。传统忌大门直冲座位；对应隐私与干扰。"),
+    ("FS-KIT-004", "灶台邻近卫生间门", "kitchen", "medium", r_kit004,
+     "卫生间常闭门并加强排风；灶位沿台面移离卫生间门侧 ≥ 2.00 m。",
+     "灶台邻近卫生间门。传统讲究「灶厕不相见」；卫生角度，卫生间湿度大且易产生带菌气溶胶，与食品加工区就近布置存在卫生隐患。"),
+    ("FS-BED-007", "卫生间门冲床", "bedroom", "high", r_bed007,
+     "卫生间常闭门、加强排风，或调整床位/加隔断避开开门视线。",
+     "卫生间门正对卧床。传统认为秽气之门冲床为忌；环境角度，卫生间湿气与异味直接影响卧区舒适与卫生。"),
 ]
+
+# ---------------------------------------------------------------- 交底卡
+# 把规则映射到装修工序阶段，输出按「可指认、可施工、可验收」组织的交底卡。
+# stage 取值：pre_work（动工前） / plumbing（水电） / masonry（泥木吊顶） / acceptance（竣工验收）
+
+RULE_STAGE = {
+    "FS-ENT-001": "pre_work", "FS-ENT-003": "masonry",   # 门位/玄关隔断
+    "FS-GEN-001": "pre_work",
+    "FS-KIT-001": "plumbing", "FS-KIT-002": "plumbing",
+    "FS-KIT-003": "plumbing", "FS-KIT-004": "plumbing",
+    "FS-BED-007": "plumbing",
+    "FS-ENT-002": "masonry", "FS-BED-004": "masonry",    # 隔断/吊顶
+    "FS-BED-001": "acceptance", "FS-BED-002": "acceptance",
+    "FS-BED-003": "acceptance", "FS-BED-005": "acceptance",
+    "FS-BED-006": "acceptance", "FS-GEN-002": "acceptance",
+    "FS-GEN-003": "acceptance", "FS-GEN-004": "acceptance",
+    "FS-LIV-001": "acceptance", "FS-LIV-002": "acceptance",
+}
+
+# 每条规则的验收标准（竣工/复检时怎么确认改到位）
+RULE_ACCEPT = {
+    "FS-BED-001": "复测床头边与实墙间隙 ≤ 0.05 m，墙段长 ≥ 床宽",
+    "FS-BED-002": "开门视角下卧床不在 ±30° 视线锥内，或门中心距床 ≥ 2.50 m",
+    "FS-BED-003": "镜面法线与镜→床连线夹角 ≥ 30°，或镜床间距 > 4.00 m",
+    "FS-BED-004": "床矩形与梁投影带无重叠，或吊顶完成并遮蔽梁带",
+    "FS-BED-005": "床头边贴靠实墙段，与窗墙距离 > 0.05 m",
+    "FS-BED-006": "床两侧至少一侧净空 ≥ 0.60 m（人因建议 0.76 m）",
+    "FS-ENT-001": "两门中心距 ≥ 3.00 m 或法线夹角 < 160°，或隔断/门帘安装到位",
+    "FS-ENT-002": "入户门视线锥内不可见灶台，或隔断安装到位",
+    "FS-ENT-003": "玄关柜/屏风安装完成，门→窗视线被阻断",
+    "FS-GEN-001": "两门中心距 ≥ 3.00 m 或错位开门，视线不贯通",
+    "FS-GEN-002": "镜面法线与镜→门连线夹角 ≥ 30°",
+    "FS-GEN-003": "门内通道净宽复测 ≥ 0.90 m",
+    "FS-GEN-004": "窗前 0.50 m 采光带内无高于 1.20 m 的家具",
+    "FS-KIT-001": "灶台与水槽最小间距复测 ≥ 0.60 m",
+    "FS-KIT-002": "灶台与最近内门边缘距离 ≥ 0.90 m",
+    "FS-KIT-003": "厨房门视线锥内不可见灶台",
+    "FS-KIT-004": "灶台与卫生间门边缘距离 ≥ 2.00 m，或卫生间常闭+排风改造完成",
+    "FS-BED-007": "卫生间门视线锥内不可见卧床，或常闭+排风/隔断改造完成",
+    "FS-LIV-001": "沙发背面净空 ≤ 0.15 m，或靠山柜体安装到位",
+    "FS-LIV-002": "沙发主朝向与沙发→门连线夹角 ≥ 15°",
+}
+
+STAGE_TITLES = [
+    ("pre_work", "动工前交底卡"),
+    ("plumbing", "水电阶段交底卡"),
+    ("masonry", "泥木/吊顶阶段交底卡"),
+    ("acceptance", "竣工验收卡"),
+]
+
+
+def _build_handover_cards(violations, skipped):
+    """按工序阶段组织违规为交底卡。文化参考与 warnings 不进卡（另行展示）。"""
+    cards = []
+    for stage, title in STAGE_TITLES:
+        items = []
+        for v in violations:
+            if RULE_STAGE.get(v["rule_id"]) != stage:
+                continue
+            items.append({
+                "rule_id": v["rule_id"],
+                "name": v["name"],
+                "severity": v["severity"],
+                "objects": v["objects"],
+                "object_labels": v["object_labels"],
+                "what": v["detail"] or v["violation_text"],
+                "action": v["suggestion"],
+                "accept": RULE_ACCEPT.get(v["rule_id"], "调整后复检本条规则通过"),
+            })
+        skips = [k for k in skipped if RULE_STAGE.get(k["rule_id"]) == stage]
+        if items or skips:
+            cards.append({"stage": stage, "title": title, "items": items,
+                          "skipped": skips})
+    return cards
 
 
 # ---------------------------------------------------------------- 主流程
@@ -992,6 +1128,7 @@ def run(scene_path, only=None, include_low=True, culture=False):
     # 文化参考层：与 violations 完全隔离，不参与上面的任何计数。
     if culture:
         culture_ref = minggua.check_owner(data.get("meta", {}).get("owner"), s)
+        culture_ref["region"] = region.check_region(data.get("meta", {}).get("region"))
     else:
         culture_ref = {
             "enabled": False,
@@ -1012,6 +1149,7 @@ def run(scene_path, only=None, include_low=True, culture=False):
         "passed_rules": passed,
         "skipped": skipped,
         "warnings": warnings,
+        "handover_cards": _build_handover_cards(violations, skipped),
         "culture_reference": culture_ref,
     }
 
@@ -1045,6 +1183,25 @@ def to_md(r):
         for k in r["skipped"]:
             L.append("- %s %s：%s" % (k["rule_id"], k["name"], k["reason"]))
 
+    # 交底卡：按施工工序组织，满足「可指认、可施工、可验收」
+    if r.get("handover_cards"):
+        L.append("")
+        L.append("---")
+        L.append("")
+        L.append("## 装修工序交底卡")
+        for card in r["handover_cards"]:
+            L.append("")
+            L.append("### %s" % card["title"])
+            for it in card["items"]:
+                mark = {"high": "🔴", "medium": "🟠", "low": "🟡"}.get(it["severity"], "•")
+                L.append("")
+                L.append("- %s **%s %s**" % (mark, it["rule_id"], it["name"]))
+                L.append("  - 现状：%s" % it["what"])
+                L.append("  - 施工动作：%s" % it["action"])
+                L.append("  - 验收标准：%s" % it["accept"])
+            for k in card.get("skipped", []):
+                L.append("- ⚪ 未能判定：%s %s（%s）" % (k["rule_id"], k["name"], k["reason"]))
+
     # 文化参考单独成段，与上面的空间判定用分隔线隔开。
     c = r.get("culture_reference") or {}
     if c.get("enabled") and c.get("available"):
@@ -1075,6 +1232,28 @@ def to_md(r):
         L.append("## 文化参考 · 未生成")
         L.append("")
         L.append("原因：%s" % c.get("reason", "未知"))
+
+    # 地域文化参考（同样只在 culture 启用时输出，独立小节）
+    rg = c.get("region") or {}
+    if rg.get("enabled"):
+        L.append("")
+        L.append("---")
+        L.append("")
+        L.append("## 文化参考 · 地域五行（%s）" % (rg.get("region") or "未识别"))
+        L.append("")
+        if rg.get("available"):
+            L.append(rg["text"])
+            L.append("")
+            L.append("> 建议色系：%s；意象参考：%s" % ("、".join(rg["palette"]), "、".join(rg["imagery"])))
+        else:
+            L.append("原因：%s" % rg.get("reason", "未知"))
+        L.append("")
+        L.append("<details><summary>本段局限</summary>")
+        L.append("")
+        for x in rg.get("limits", []):
+            L.append("- %s" % x)
+        L.append("")
+        L.append("</details>")
     return "\n".join(L)
 
 
