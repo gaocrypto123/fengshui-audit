@@ -1137,7 +1137,7 @@ def run(scene_path, only=None, include_low=True, culture=False):
 
     return {
         "scene": data.get("meta", {}).get("name", Path(scene_path).name),
-        "rule_version": "v1.1",
+        "rule_version": "v1.2",
         "rule_count": len([r for r in RULES if not only or r[0] in only]),
         "summary": {
             "violations": len(violations),
