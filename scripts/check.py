@@ -16,6 +16,8 @@
   1. 只做几何判定，不做解释。解释由 L2（知识层）与 L3（表达层）负责。
   2. 每条规则的阈值来自 references/parameters.md，与国标/人体工程学对照标注。
   3. 判定失败（缺字段）不静默通过，而是记入 skipped，便于上层如实告知用户。
+  4. 规则函数可返回单个 dict 或 dict 列表（多实例违规），也可返回
+     ("SKIP", 原因) 表示因数据缺失未能判定——绝不用 None 冒充"跳过"。
 """
 
 import argparse
@@ -38,6 +40,17 @@ PARAMS = {
     "ANGLE_ALIGNED": 15.0,     # 近似共线判定角
     "DIST_DOOR_BED": 2.50,     # 门冲床有效距离
     "DIST_CORRIDOR_MIN": 0.90, # 主通道最小净宽（对齐 GB 55038-2025 通厨卫下限）
+    # v1.1 收敛进来的阈值（原先散落在各规则函数里）
+    "DIST_MIRROR_BED": 4.00,   # 镜-床最大距离（FS-BED-003）
+    "DIST_ENTRY_STOVE": 5.00,  # 入户门-灶台最大距离（FS-ENT-002）
+    "DIST_DOOR_DOOR": 3.00,    # 门对门 / 灶对厨房门 / 镜对大门最大距离
+    "DIST_STOVE_DOOR": 0.90,   # 灶台-侧门最小距离（FS-KIT-002）
+    "CLEARANCE_BED_SIDE": 0.60,# 床侧通道最小净空（FS-BED-006）
+    "CLEARANCE_SEARCH": 1.50,  # 净空搜索最大距离
+    "HEIGHT_BLOCK_WIN": 1.20,  # 窗前遮光的最小家具高度
+    "BAND_WINDOW": 0.50,       # 窗前采光带深度
+    "ANGLE_BACK_TO_BACK": 160.0,  # 两门"近似相对"的法线夹角下限（FS-ENT-001）
+    "ANGLE_SAME_SIDE": 90.0,   # 判定门在灶台同侧的法线夹角上限（FS-KIT-002）
 }
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -198,6 +211,7 @@ class Scene:
                 "normal": norm(tuple(d["normal"])),
                 "width": float(d.get("width", 0.9)),
                 "is_entry": bool(d.get("is_entry", False)),
+                "room_type": str(d.get("room_type", "")),  # 显式房间类型，优先于名称猜测
             })
         self.beams = []
         for b in data.get("beams", []):
@@ -234,6 +248,9 @@ class Scene:
                 return d
         return self.doors[0] if self.doors else None
 
+    def has_entry_marked(self):
+        return any(d["is_entry"] for d in self.doors)
+
     def los(self, a, b, margin=0.06):
         """视线是否通畅（只看实墙）。"""
         d = sub(b, a)
@@ -252,13 +269,27 @@ class Scene:
                 return r["name"]
         return ""
 
+    def interior_center(self):
+        """场景内部参考点：优先用房间矩形中心的平均；没有房间数据时用全部墙段的包围盒中心。"""
+        if self.rooms:
+            xs = [r["rect"].c[0] for r in self.rooms]
+            ys = [r["rect"].c[1] for r in self.rooms]
+            return (sum(xs) / len(xs), sum(ys) / len(ys))
+        if self.walls:
+            pts = [w["a"] for w in self.walls] + [w["b"] for w in self.walls]
+            return ((min(p[0] for p in pts) + max(p[0] for p in pts)) / 2.0,
+                    (min(p[1] for p in pts) + max(p[1] for p in pts)) / 2.0)
+        return None
 
-def clearance_along(scene, start, normal, max_dist=3.0, step=0.02, skip=()):
+
+def clearance_along(scene, start, normal, max_dist=None, step=0.02, skip=()):
     """从 start 沿 normal 方向能走多远而不撞到障碍。
 
     这是「净空」的正确度量：床侧通道、沙发背后都要看特定方向上的余量，
     而不是到任意障碍的最短距离（后者会把侧向的墙误算成背后不靠）。
     """
+    if max_dist is None:
+        max_dist = PARAMS["CLEARANCE_SEARCH"]
     obstacles = []
     for w in scene.solid_walls():
         obstacles.append((w["a"], w["b"]))
@@ -292,46 +323,56 @@ def cone_hits_rect(origin, dir_deg, half_angle, rect, max_dist):
 
 
 # ---------------------------------------------------------------- 规则实现
-# 每个函数签名 (scene) -> None | dict(extra fields)
-# 返回 dict 表示违规，其中 objects 与 detail 会并入输出。
+# 每个函数签名 (scene) -> None（通过）| dict（单条违规）| list[dict]（多条违规）
+#                                                  | ("SKIP", 原因)（数据缺失未判定）
 
 
 def r_bed001(s):
-    """床头靠实墙：床头边到最近实墙间隙 > GAP_HEAD_WALL，或墙段短于床宽，或该墙是窗墙。"""
+    """床头靠实墙：床头边到实墙间隙 > GAP_HEAD_WALL，或所贴墙段短于床宽，或该墙是窗墙。
+
+    v1.1 修正：先在「贴墙阈值内」的候选实墙里挑墙长检查，避免附近一段短隔墙
+    被误当成床头依靠的墙；每张床独立判定，支持多张床各出一条。
+    """
+    out = []
     for f in s.of_type("bed"):
         r = f["rect"]
         a, b = r.back_edge()
-        mid = r.back_mid()
-        best_w, best_d = None, 1e9
-        for w in s.solid_walls():
-            d = seg_seg_dist(a, b, w["a"], w["b"])
-            if d < best_d:
-                best_d, best_w = d, w
-        if best_w is None:
-            return {"objects": [f["id"]], "detail": "场景中没有实墙，无法判定床头依靠"}
-        wall_len = dist(best_w["a"], best_w["b"])
-        # 加 1mm 容差：贴墙判定是浮点比较，0.05 与 0.05 会因舍入抖动误判
-        if best_d > PARAMS["GAP_HEAD_WALL"] + 1e-3:
-            return {
+        cands = sorted(
+            ((seg_seg_dist(a, b, w["a"], w["b"]), w) for w in s.solid_walls()),
+            key=lambda x: x[0])
+        if not cands:
+            out.append({"objects": [f["id"]],
+                        "detail": "场景中没有实墙，无法判定床头依靠"})
+            continue
+        best_d, best_w = cands[0]
+        tol = PARAMS["GAP_HEAD_WALL"] + 1e-3  # 加 1mm 容差：贴墙判定是浮点比较
+        if best_d > tol:
+            out.append({
                 "objects": [f["id"], best_w["id"]],
                 "detail": "床头边距最近实墙 %s m，超过贴墙阈值 %s m"
                           % (round(best_d, 2), PARAMS["GAP_HEAD_WALL"]),
                 "measured": round(best_d, 2),
                 "wall_id": best_w["id"],
-            }
+            })
+            continue
+        # 已贴墙：在贴墙阈值内的候选墙里检查墙段长度（取最长的一段）
+        near = [w for d, w in cands if d <= tol]
+        longest = max(near, key=lambda w: dist(w["a"], w["b"]))
+        wall_len = dist(longest["a"], longest["b"])
         if wall_len < r.wid - 1e-3:
-            return {
-                "objects": [f["id"], best_w["id"]],
+            out.append({
+                "objects": [f["id"], longest["id"]],
                 "detail": "床头所在墙段仅 %s m，短于床宽 %s m"
                           % (round(wall_len, 2), round(r.wid, 2)),
                 "measured": round(wall_len, 2),
-                "wall_id": best_w["id"],
-            }
-    return None
+                "wall_id": longest["id"],
+            })
+    return out or None
 
 
 def r_bed002(s):
     """门冲床：门中心到床 < DIST_DOOR_BED，且门视线锥罩住床，且床头不在该门所在墙段。"""
+    out = []
     for f in s.of_type("bed"):
         r = f["rect"]
         for d in s.doors:
@@ -345,49 +386,57 @@ def r_bed002(s):
                 continue
             if not s.los(d["center"], r.c):
                 continue
-            return {
+            out.append({
                 "objects": [f["id"], d["id"]],
                 "detail": "门中心距床 %.2f m（阈值 %.2f m），开门视线锥内可见卧床"
                           % (dd, PARAMS["DIST_DOOR_BED"]),
                 "measured": round(dd, 2),
-            }
-    return None
+            })
+    return out or None
 
 
 def r_bed003(s):
-    """床不对镜：镜面法线指向床（夹角 < 半角），距离 < 4.0，视线通畅。"""
+    """床不对镜：镜面法线指向床（夹角 < 半角），距离 < DIST_MIRROR_BED，视线通畅。"""
     beds = s.of_type("bed")
     if not beds:
         return None
+    out = []
     for m in s.of_type("mirror"):
         mr = m["rect"]
         for bed in beds:
             br = bed["rect"]
             dd = mr.dist_to_rect(br)
-            if dd > 4.0:
+            if dd > PARAMS["DIST_MIRROR_BED"]:
                 continue
             v = sub(br.c, mr.c)
             if angle_between(heading_vec(mr.heading), v) > PARAMS["ANGLE_DOOR_FAN"]:
                 continue
             if not s.los(mr.c, br.c):
                 continue
-            return {
+            out.append({
                 "objects": [m["id"], bed["id"]],
                 "detail": "镜面法线与镜→床连线夹角 %.1f°（阈值 %.0f°），距离 %.2f m"
                           % (angle_between(heading_vec(mr.heading), v),
                              PARAMS["ANGLE_DOOR_FAN"], dd),
                 "measured": round(dd, 2),
-            }
-    return None
+            })
+    return out or None
 
 
 def r_bed004(s):
-    """横梁压床：梁的俯视投影带与床矩形相交。"""
+    """横梁压床：梁的俯视投影带与床矩形相交。
+
+    v1.1 修正：场景 JSON 里没有 beams 字段时返回 SKIP（记入 skipped），
+    不再与"确实没有梁"混同为通过。
+    """
     beds = s.of_type("bed")
     if not beds:
         return None
+    if "beams" not in s.raw:
+        return ("SKIP", "场景未提供 beams 字段，横梁压床（FS-BED-004）未能判定")
     if not s.beams:
-        return None
+        return None  # 明确给了空列表 = 确实无梁，正常通过
+    out = []
     for bm in s.beams:
         half = bm["width"] / 2.0
         u = norm(sub(bm["b"], bm["a"]))
@@ -404,16 +453,17 @@ def r_bed004(s):
                 # 床完全在梁带内
                 hit = all(abs(dot(sub(c, bm["a"]), n)) <= half for c in r.corners())
             if hit:
-                return {
+                out.append({
                     "objects": [f["id"], bm["id"]],
                     "detail": "床的俯视投影与「%s」梁带重叠（梁宽 %.2f m）"
                               % (bm.get("name") or bm["id"], bm["width"]),
-                }
-    return None
+                })
+    return out or None
 
 
 def r_bed005(s):
     """床头不靠窗：床头边贴靠的是窗墙。"""
+    out = []
     for f in s.of_type("bed"):
         r = f["rect"]
         a, b = r.back_edge()
@@ -421,15 +471,16 @@ def r_bed005(s):
             if not w["is_window"]:
                 continue
             if seg_seg_dist(a, b, w["a"], w["b"]) <= PARAMS["GAP_HEAD_WALL"]:
-                return {
+                out.append({
                     "objects": [f["id"], w["id"]],
                     "detail": "床头边贴靠%s" % wall_label(s, w),
-                }
-    return None
+                })
+    return out or None
 
 
 def r_bed006(s):
-    """床侧通道：两侧长边的外法线方向净空均 < 0.60m。"""
+    """床侧通道：两侧长边的外法线方向净空均 < CLEARANCE_BED_SIDE。"""
+    out = []
     for f in s.of_type("bed"):
         r = f["rect"]
         h = heading_vec(r.heading)
@@ -439,70 +490,91 @@ def r_bed006(s):
             n = mul(out_n, side)
             # 长边中点：床中心沿 n 偏移半个床宽
             m = add(r.c, mul(n, r.wid / 2.0))
-            gap = clearance_along(s, m, n, max_dist=1.5, skip=(f["id"],))
+            gap = clearance_along(s, m, n, max_dist=PARAMS["CLEARANCE_SEARCH"],
+                                  skip=(f["id"],))
             best_side = max(best_side, gap)
-            if gap >= 0.60:
+            if gap >= PARAMS["CLEARANCE_BED_SIDE"]:
                 ok = True
                 break
         if not ok:
-            return {
+            out.append({
                 "objects": [f["id"]],
-                "detail": "床两侧外沿净空分别为 %.2f m 以内，均不足 0.60 m"
-                          "（人因参考：床边走道 ≥ 0.76 m）" % min(best_side, 0.6),
-            }
-    return None
+                "detail": "床两侧外沿净空分别为 %.2f m 以内，均不足 %.2f m"
+                          "（人因参考：床边走道 ≥ 0.76 m）"
+                          % (min(best_side, PARAMS["CLEARANCE_BED_SIDE"]),
+                             PARAMS["CLEARANCE_BED_SIDE"]),
+            })
+    return out or None
 
 
 def r_ent001(s):
-    """大门对卫生间门：两门法线近似相反、距离 < 3.0、视线通畅。"""
+    """大门对卫生间门：两门法线近似相反、距离 < DIST_DOOR_DOOR、视线通畅。"""
     e = s.entry()
     if not e:
         return None
+    out = []
     for d in s.doors:
         if d["id"] == e["id"]:
             continue
-        if "卫" not in d["name"] and "toilet" not in d["id"].lower() \
-                and "bath" not in d["id"].lower():
+        if not _is_toilet_door(d):
             continue
         dd = dist(e["center"], d["center"])
-        if dd >= 3.0:
+        if dd >= PARAMS["DIST_DOOR_DOOR"]:
             continue
         ang = angle_between(e["normal"], d["normal"])
-        if ang < 160.0:
+        if ang < PARAMS["ANGLE_BACK_TO_BACK"]:
             continue
         if not s.los(e["center"], d["center"]):
             continue
-        return {
+        out.append({
             "objects": [e["id"], d["id"]],
-            "detail": "入户门与卫生间门相对，中心距 %.2f m（阈值 3.00 m），两门法线夹角 %.0f°"
-                      % (dd, ang),
+            "detail": "入户门与卫生间门相对，中心距 %.2f m（阈值 %.2f m），两门法线夹角 %.0f°"
+                      % (dd, PARAMS["DIST_DOOR_DOOR"], ang),
             "measured": round(dd, 2),
-        }
-    return None
+        })
+    return out or None
+
+
+def _is_toilet_door(d):
+    """识别卫生间门：优先显式 room_type 字段，降级到名称/ID 关键词。"""
+    rt = str(d.get("room_type", "")).lower()
+    if rt:
+        return rt in ("toilet", "bath", "bathroom", "wc")
+    return ("卫" in d["name"] or "toilet" in d["id"].lower()
+            or "bath" in d["id"].lower())
+
+
+def _is_kitchen_door(d):
+    """识别厨房门：优先显式 room_type 字段，降级到名称/ID 关键词。"""
+    rt = str(d.get("room_type", "")).lower()
+    if rt:
+        return rt in ("kitchen", "kit")
+    return "厨" in d["name"] or "kit" in d["id"].lower()
 
 
 def r_ent002(s):
-    """开门见灶：入户门视线锥内命中灶台，距离 < 5.0，视线通畅。"""
+    """开门见灶：入户门视线锥内命中灶台，距离 < DIST_ENTRY_STOVE，视线通畅。"""
     e = s.entry()
     if not e:
         return None
+    out = []
     for st in s.of_type("stove"):
         r = st["rect"]
         dd = min(point_seg_dist(e["center"], p, q) for p, q in r.edges())
-        if dd >= 5.0:
+        if dd >= PARAMS["DIST_ENTRY_STOVE"]:
             continue
         if not cone_hits_rect(e["center"], heading_of(e["normal"]),
-                              PARAMS["ANGLE_DOOR_FAN"], r, 5.0):
+                              PARAMS["ANGLE_DOOR_FAN"], r, PARAMS["DIST_ENTRY_STOVE"]):
             continue
         if not s.los(e["center"], r.c):
             continue
-        return {
+        out.append({
             "objects": [e["id"], st["id"]],
             "detail": "入户门视线锥（±%.0f°）内可见灶台，距离 %.2f m"
                       % (PARAMS["ANGLE_DOOR_FAN"], dd),
             "measured": round(dd, 2),
-        }
-    return None
+        })
+    return out or None
 
 
 def r_ent003(s):
@@ -510,6 +582,7 @@ def r_ent003(s):
     e = s.entry()
     if not e:
         return None
+    out = []
     for w in s.walls:
         if not w["is_window"]:
             continue
@@ -521,65 +594,67 @@ def r_ent003(s):
             continue
         if not s.los(e["center"], c):
             continue
-        return {
+        out.append({
             "objects": [e["id"], w["id"]],
             "detail": "入户门正对窗洞「%s」，夹角 %.1f°（阈值 %.0f°），视线无遮挡"
                       % (w["id"], angle_between(heading_vec(heading_of(e["normal"])), v),
                          PARAMS["ANGLE_ALIGNED"]),
-        }
-    return None
+        })
+    return out or None
 
 
 def r_gen001(s):
-    """内门对冲：任意两扇内门，各自法线指向对方，距离 < 3.0，视线通畅。"""
+    """内门对冲：任意两扇内门，各自法线指向对方，距离 < DIST_DOOR_DOOR，视线通畅。"""
     inner = [d for d in s.doors if not d["is_entry"]]
+    out = []
     for i in range(len(inner)):
         for j in range(i + 1, len(inner)):
             a, b = inner[i], inner[j]
             dd = dist(a["center"], b["center"])
-            if dd >= 3.0:
+            if dd >= PARAMS["DIST_DOOR_DOOR"]:
                 continue
             va, vb = sub(b["center"], a["center"]), sub(a["center"], b["center"])
-            if angle_between(a["normal"], va) > 30.0:
+            if angle_between(a["normal"], va) > PARAMS["ANGLE_DOOR_FAN"]:
                 continue
-            if angle_between(b["normal"], vb) > 30.0:
+            if angle_between(b["normal"], vb) > PARAMS["ANGLE_DOOR_FAN"]:
                 continue
             if not s.los(a["center"], b["center"]):
                 continue
-            return {
+            out.append({
                 "objects": [a["id"], b["id"]],
                 "detail": "两扇内门相对且视线贯通，中心距 %.2f m" % dd,
                 "measured": round(dd, 2),
-            }
-    return None
+            })
+    return out or None
 
 
 def r_gen002(s):
-    """镜面对大门：镜面法线锥命中入户门，距离 < 3.0，视线通畅。"""
+    """镜面对大门：镜面法线锥命中入户门，距离 < DIST_DOOR_DOOR，视线通畅。"""
     e = s.entry()
     if not e:
         return None
+    out = []
     for m in s.of_type("mirror"):
         mr = m["rect"]
         dd = dist(mr.c, e["center"])
-        if dd >= 3.0:
+        if dd >= PARAMS["DIST_DOOR_DOOR"]:
             continue
         v = sub(e["center"], mr.c)
         if angle_between(heading_vec(mr.heading), v) > PARAMS["ANGLE_DOOR_FAN"]:
             continue
         if not s.los(mr.c, e["center"]):
             continue
-        return {
+        out.append({
             "objects": [m["id"], e["id"]],
             "detail": "镜面法线指向入户门（夹角 %.1f°），距离 %.2f m"
                       % (angle_between(heading_vec(mr.heading), v), dd),
             "measured": round(dd, 2),
-        }
-    return None
+        })
+    return out or None
 
 
 def r_gen003(s):
-    """主通道净宽：门内 0.5m 处，垂直门向的左右净空之和 < 0.90m。
+    """主通道净宽：门内 0.5m 处，垂直门向的左右净空之和 < DIST_CORRIDOR_MIN。
 
     只测「门口通道」而不做全屋寻路，是因为门口净宽才是真正卡人的地方；
     全屋寻路受家具布局路径选择影响大，容易给出无法解释的结论。
@@ -588,136 +663,149 @@ def r_gen003(s):
     for d in s.doors:
         p = add(d["center"], mul(d["normal"], 0.5))
         side = (-d["normal"][1], d["normal"][0])
-        left = clearance_along(s, p, side, max_dist=1.5)
-        right = clearance_along(s, p, mul(side, -1.0), max_dist=1.5)
+        left = clearance_along(s, p, side, max_dist=PARAMS["CLEARANCE_SEARCH"])
+        right = clearance_along(s, p, mul(side, -1.0), max_dist=PARAMS["CLEARANCE_SEARCH"])
         width = left + right
         if worst is None or width < worst[0]:
             worst = (width, d)
     if worst and worst[0] < PARAMS["DIST_CORRIDOR_MIN"]:
         d = worst[1]
-        return {
+        return [{
             "objects": [d["id"]],
             "detail": "「%s」门内通道净宽约 %.2f m（阈值 %.2f m；GB 55038-2025 要求"
                       "通往卧室/起居室 ≥ 1.00 m、通往厨卫 ≥ 0.90 m）"
                       % (d["name"], worst[0], PARAMS["DIST_CORRIDOR_MIN"]),
             "measured": round(worst[0], 2),
-        }
+        }]
     return None
 
 
 def r_gen004(s):
-    """窗前遮光：高于 1.2m 的家具进入窗前 0.5m 深度带。"""
+    """窗前遮光：高于 HEIGHT_BLOCK_WIN 的家具进入窗前 BAND_WINDOW 深度带。
+
+    v1.1 修正：窗的内法线方向不再用硬编码坐标判断，改为指向
+    场景内部参考点（房间中心均值，缺房间时用墙包围盒中心）。
+    """
+    if not s.walls:
+        return None
+    inside = s.interior_center()
+    if inside is None:
+        return ("SKIP", "场景没有任何墙体数据，窗前遮光（FS-GEN-004）无法确定内侧方向")
+    out = []
     for w in s.walls:
         if not w["is_window"]:
             continue
         u = norm(sub(w["b"], w["a"]))
-        # 窗的内法线：朝向场景内部（取房间中心方向）
         n = perp(u)
         mid = ((w["a"][0] + w["b"][0]) / 2.0, (w["a"][1] + w["b"][1]) / 2.0)
-        inside = (4.2, 4.8)
         if dot(sub(inside, mid), n) < 0:
             n = mul(n, -1.0)
-        x1, x2 = add(w["a"], mul(n, 0.5)), add(w["b"], mul(n, 0.5))
+        x1, x2 = add(w["a"], mul(n, PARAMS["BAND_WINDOW"])), \
+            add(w["b"], mul(n, PARAMS["BAND_WINDOW"]))
         band = [w["a"], w["b"], x2, x1]
         band_edges = [(band[0], band[1]), (band[1], band[2]),
                       (band[2], band[3]), (band[3], band[0])]
         for f in s.furn:
-            if f["height"] < 1.2:
+            if f["height"] < PARAMS["HEIGHT_BLOCK_WIN"]:
                 continue
             r = f["rect"]
             if any(seg_intersect(p, q, x, y) for p, q in band_edges for x, y in r.edges()):
-                return {
+                out.append({
                     "objects": [f["id"], w["id"]],
-                    "detail": "高 %.2f m 的「%s」位于窗前 0.5 m 采光带内"
-                              % (f["height"], f["name"]),
-                }
-    return None
+                    "detail": "高 %.2f m 的「%s」位于窗前 %.2f m 采光带内"
+                              % (f["height"], f["name"], PARAMS["BAND_WINDOW"]),
+                })
+    return out or None
 
 
 def r_kit001(s):
-    """水火不相冲：灶台与水槽间距 < 0.60m。"""
+    """水火不相冲：灶台与水槽间距 < GAP_STOVE_SINK。"""
+    out = []
     for st in s.of_type("stove"):
         for sk in s.of_type("sink"):
             dd = st["rect"].dist_to_rect(sk["rect"])
             if dd < PARAMS["GAP_STOVE_SINK"]:
-                return {
+                out.append({
                     "objects": [st["id"], sk["id"]],
                     "detail": "灶台与水槽最小间距 %.2f m，低于 %.2f m"
                               % (dd, PARAMS["GAP_STOVE_SINK"]),
                     "measured": round(dd, 2),
-                }
-    return None
+                })
+    return out or None
 
 
 def r_kit002(s):
-    """灶台背门：灶台与同侧门距离 < 0.9m。"""
+    """灶台背门：灶台与同侧门距离 < DIST_STOVE_DOOR。"""
+    out = []
     for st in s.of_type("stove"):
         r = st["rect"]
         for d in s.doors:
             if d["is_entry"]:
                 continue
             dd = min(point_seg_dist(d["center"], p, q) for p, q in r.edges())
-            if dd >= 0.9:
+            if dd >= PARAMS["DIST_STOVE_DOOR"]:
                 continue
             # 门是否在灶台同侧（门法线与「门→灶」同向）
             v = sub(r.c, d["center"])
-            if angle_between(d["normal"], v) > 90.0:
+            if angle_between(d["normal"], v) > PARAMS["ANGLE_SAME_SIDE"]:
                 continue
-            return {
+            out.append({
                 "objects": [st["id"], d["id"]],
-                "detail": "灶台距「%s」仅 %.2f m（阈值 0.90 m），灶后临门" % (d["name"], dd),
+                "detail": "灶台距「%s」仅 %.2f m（阈值 %.2f m），灶后临门"
+                          % (d["name"], dd, PARAMS["DIST_STOVE_DOOR"]),
                 "measured": round(dd, 2),
-            }
-    return None
+            })
+    return out or None
 
 
 def r_kit003(s):
-    """灶台正对厨房门：厨房门法线锥命中灶台，距离 < 3.0，视线通畅。"""
+    """灶台正对厨房门：厨房门法线锥命中灶台，距离 < DIST_DOOR_DOOR，视线通畅。"""
+    out = []
     for d in s.doors:
-        if d["is_entry"]:
-            continue
-        if "厨" not in d["name"] and "kit" not in d["id"].lower():
+        if d["is_entry"] or not _is_kitchen_door(d):
             continue
         for st in s.of_type("stove"):
             r = st["rect"]
             dd = min(point_seg_dist(d["center"], p, q) for p, q in r.edges())
-            if dd >= 3.0:
+            if dd >= PARAMS["DIST_DOOR_DOOR"]:
                 continue
             if not cone_hits_rect(d["center"], heading_of(d["normal"]),
-                                  PARAMS["ANGLE_DOOR_FAN"], r, 3.0):
+                                  PARAMS["ANGLE_DOOR_FAN"], r, PARAMS["DIST_DOOR_DOOR"]):
                 continue
             if not s.los(d["center"], r.c):
                 continue
-            return {
+            out.append({
                 "objects": [d["id"], st["id"]],
                 "detail": "厨房门视线锥内正对灶台，距离 %.2f m" % dd,
                 "measured": round(dd, 2),
-            }
-    return None
+            })
+    return out or None
 
 
 def r_liv001(s):
-    """沙发背后有靠：沙发背边沿法线方向的净空需 <= 0.15m（墙或高柜皆可）。"""
+    """沙发背后有靠：沙发背边沿法线方向的净空需 <= GAP_SOFA_WALL（墙或高柜皆可）。"""
+    out = []
     for f in s.of_type("sofa"):
         r = f["rect"]
         back = r.back_mid()
         n = mul(heading_vec(r.heading), -1.0)  # 背向
         gap = clearance_along(s, back, n, max_dist=1.2, skip=(f["id"],))
         if gap > PARAMS["GAP_SOFA_WALL"]:
-            return {
+            out.append({
                 "objects": [f["id"]],
                 "detail": "沙发背面净空 %.2f m，超过靠山阈值 %.2f m"
                           % (gap, PARAMS["GAP_SOFA_WALL"]),
                 "measured": round(gap, 2),
-            }
-    return None
+            })
+    return out or None
 
 
 def r_liv002(s):
-    """沙发正对大门：沙发主朝向与「沙发→门」连线夹角 < 15°，距离 < 4.0。"""
+    """沙发正对大门：沙发主朝向与「沙发→门」连线夹角 < ANGLE_ALIGNED，距离 < 4.0。"""
     e = s.entry()
     if not e:
         return None
+    out = []
     for f in s.of_type("sofa"):
         r = f["rect"]
         dd = dist(r.c, e["center"])
@@ -726,12 +814,12 @@ def r_liv002(s):
         v = sub(e["center"], r.c)
         ang = angle_between(heading_vec(r.heading), v)
         if ang < PARAMS["ANGLE_ALIGNED"]:
-            return {
+            out.append({
                 "objects": [f["id"], e["id"]],
                 "detail": "沙发主朝向正对入户门，夹角 %.1f°，距离 %.2f m" % (ang, dd),
                 "measured": round(dd, 2),
-            }
-    return None
+            })
+    return out or None
 
 
 # ---------------------------------------------------------------- 规则元数据
@@ -834,10 +922,32 @@ def _fill(template, labels):
     return out
 
 
+def _label_of(s, o):
+    for f in s.furn:
+        if f["id"] == o:
+            return f["name"]
+    for d in s.doors:
+        if d["id"] == o:
+            return d["name"]
+    for w in s.walls:
+        if w["id"] == o:
+            return wall_label(s, w)
+    for b in s.beams:
+        if b["id"] == o:
+            return b.get("name") or o
+    return ""
+
+
 def run(scene_path, only=None, include_low=True, culture=False):
     data = json.loads(Path(scene_path).read_text(encoding="utf-8"))
     s = Scene(data)
-    violations, passed, skipped = [], [], []
+    violations, passed, skipped, warnings = [], [], [], []
+
+    # 隐式假设显式化：入口门退化要提醒，不能静默
+    if s.doors and not s.has_entry_marked():
+        warnings.append(
+            "场景未标注 is_entry，已默认以第一扇门「%s」作为入户门参与判定。"
+            % s.doors[0]["name"])
 
     for rid, name, cat, sev, fn, suggestion, vtext in RULES:
         if only and rid not in only:
@@ -847,41 +957,32 @@ def run(scene_path, only=None, include_low=True, culture=False):
         try:
             res = fn(s)
         except Exception as e:  # 缺字段等情况如实记录，不静默通过
-            skipped.append({"rule_id": rid, "name": name, "reason": "%s: %s" % (type(e).__name__, e)})
+            skipped.append({"rule_id": rid, "name": name,
+                            "reason": "%s: %s" % (type(e).__name__, e)})
+            continue
+        if isinstance(res, tuple) and len(res) == 2 and res[0] == "SKIP":
+            # 显式跳过：数据缺失，绝不能与"通过"混淆
+            skipped.append({"rule_id": rid, "name": name, "reason": res[1]})
             continue
         if res is None:
             passed.append({"rule_id": rid, "name": name})
             continue
-        objs = res.get("objects", [])
-        # 用场景里的中文名替换 ID，供 L3 直接套模板
-        label = []
-        for o in objs:
-            nm = ""
-            for f in s.furn:
-                if f["id"] == o:
-                    nm = f["name"]
-            for d in s.doors:
-                if d["id"] == o:
-                    nm = d["name"]
-            for w in s.walls:
-                if w["id"] == o:
-                    nm = wall_label(s, w)
-            for b in s.beams:
-                if b["id"] == o:
-                    nm = b.get("name") or o
-            label.append(nm or o)
-        violations.append({
-            "rule_id": rid,
-            "name": name,
-            "category": cat,
-            "severity": sev,
-            "objects": objs,
-            "object_labels": label,
-            "violation_text": vtext,
-            "suggestion": _fill(suggestion, label),
-            "detail": res.get("detail", ""),
-            "measured": res.get("measured"),
-        })
+        items = res if isinstance(res, list) else [res]  # 多实例违规
+        for res_i in items:
+            objs = res_i.get("objects", [])
+            label = [_label_of(s, o) or o for o in objs]
+            violations.append({
+                "rule_id": rid,
+                "name": name,
+                "category": cat,
+                "severity": sev,
+                "objects": objs,
+                "object_labels": label,
+                "violation_text": vtext,
+                "suggestion": _fill(suggestion, label),
+                "detail": res_i.get("detail", ""),
+                "measured": res_i.get("measured"),
+            })
 
     violations.sort(key=lambda v: (SEVERITY_ORDER.get(v["severity"], 9), v["rule_id"]))
     counts = {"high": 0, "medium": 0, "low": 0}
@@ -899,7 +1000,7 @@ def run(scene_path, only=None, include_low=True, culture=False):
 
     return {
         "scene": data.get("meta", {}).get("name", Path(scene_path).name),
-        "rule_version": "v1.0",
+        "rule_version": "v1.1",
         "rule_count": len([r for r in RULES if not only or r[0] in only]),
         "summary": {
             "violations": len(violations),
@@ -910,6 +1011,7 @@ def run(scene_path, only=None, include_low=True, culture=False):
         "violations": violations,
         "passed_rules": passed,
         "skipped": skipped,
+        "warnings": warnings,
         "culture_reference": culture_ref,
     }
 
@@ -925,6 +1027,9 @@ def to_md(r):
                 s["passed"],
                 "，%d 条因数据缺失未能判定" % s["skipped"] if s["skipped"] else ""))
     L.append("")
+    for wmsg in r.get("warnings", []):
+        L.append("> ⚠️ %s" % wmsg)
+        L.append("")
     if not r["violations"]:
         L.append("未发现需要调整的布局。")
     for v in r["violations"]:
