@@ -1,6 +1,6 @@
 ---
 name: fengshui-audit
-description: 审查住宅平面布局的风水禁忌与空间约束，输出可执行的调整建议。覆盖床头靠实墙、门冲床、大门对卫生间、开门见灶、穿堂煞、灶水间距、沙发背后无靠、横梁压床等 20 条规则，每条都有几何判定条件、阈值和文献出处。当用户提到户型图、平面图、装修布局、床位怎么摆、灶台/水槽位置、沙发朝向、玄关、门对门、镜子对床，或要求检查一套设计方案「布局有没有问题」「风水上合不合适」，甚至只是发来户型图问家具怎么放时，都要使用本 skill。也供 ImmerseHome 这类 AR 家居系统调用风水审查能力。即使用户没说「风水」二字，只要是住宅空间布局审查就适用。用户提到生辰八字、命卦、八宅、宅命相配、业主属什么命时也用本 skill（该部分为默认关闭的文化参考模块，独立于 18 条空间判定，不做吉凶断言）。
+description: 审查住宅户型与家具布局，基于二维结构化数据检查床、门、窗、灶台、沙发等空间关系，输出确定性的调整建议。适用于户型审查、家具摆放与风水文化参考；个人命卦仅在用户明确要求时启用。
 ---
 
 # 风水审查
@@ -36,13 +36,15 @@ description: 审查住宅平面布局的风水禁忌与空间约束，输出可�
 
 不确定某个字段怎么填时，看 `assets/demo_scene.json` —— 它是完整可跑的样板。
 
+图片或文字不能证明的尺寸、朝向、梁位不得猜成确定事实。先列出不确定字段，向用户确认影响结论的尺寸；未知集合省略，只有确认不存在才填空数组。估算结果必须说明依据，不能称为实测或合规认证。
+
 ### 2. 跑判定
 
 ```bash
 python scripts/check.py --scene <你的场景.json>                # JSON 结果
 python scripts/check.py --scene <场景.json> --format md        # 人读的报告
 python scripts/check.py --scene <场景.json> --only FS-BED-001,FS-KIT-001   # 只跑指定规则
-python scripts/check.py --list                                 # 列出 18 条规则
+python scripts/check.py --list                                 # 列出 20 条规则
 ```
 
 先跑 `assets/demo_scene.json` 验证环境正常——它埋了 9 处问题，应命中 9 条。
@@ -94,7 +96,7 @@ python scripts/check.py --list                                 # 列出 18 条�
 
 `scripts/minggua.py` 按**八宅派**约定，用出生年份算居住者命卦，再与宅向比对。
 
-**它不在 18 条判定里，也不该往里挤。** 结果只出现在输出的 `culture_reference` 字段：
+**它不在 20 条判定里，也不该往里挤。** 结果只出现在输出的 `culture_reference` 字段：
 不进入 `violations`、不计入 severity 统计、不生成任何改动建议。
 
 ```bash
@@ -103,8 +105,8 @@ python scripts/check.py --scene scene.json --culture
 
 启用条件：场景 `meta.owner` 里有 `birth_year` 和 `gender`；缺了就如实说缺什么。
 
-为什么单独拎出来——这 18 条每条都能用国标或人体工程学撑起第二条腿，命卦撑不起来。
-掺进判定层，被问"这不就是算命吗"的时候，前面 18 条的论证会被一起拖下水。
+为什么单独拎出来——这 20 条每条都能用国标或人体工程学撑起第二条腿，命卦撑不起来。
+掺进判定层，被问"这不就是算命吗"的时候，前面 20 条的论证会被一起拖下水。
 分开摆，反而能主动说："我们区分了可验证的空间约束与不可验证的文化解释。"
 
 算法表、流派局限、5 黄寄宫处理见 `references/minggua.md`。
@@ -142,3 +144,9 @@ python scripts/check.py --scene scene.json --culture
    所以它被放在判定层之外，且默认关闭。
 
 局限说清楚，比假装完备更可信——尤其这是要拿去答辩的东西。
+
+## 网站集成
+
+使用 `scripts/check.py` 的 `run_data(scene_dict)` 直接计算，不需要写临时文件；原来的 `run(path)` 与 CLI 保持可用。输入错误抛出 ValueError，接入侧应返回可读的输入错误。`summary.violations` 是问题实例数，`summary.violated_rules` 是命中规则数；后者加 passed 与 skipped 等于本次 rule_count。关闭 low 后 rule_count 只计实际选择的规则。
+
+法规与人因依据须分别核对；几何阈值命中不自动等于违反国家标准，不应将全部文化条目统称为强制规范。

@@ -25,11 +25,7 @@ ASSETS = ROOT / "assets"
 
 
 def run_scene(data):
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
-                                     encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-        path = f.name
-    return check.run(path)
+    return check.run_data(data)
 
 
 class TestGeometry(unittest.TestCase):

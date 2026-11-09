@@ -1076,6 +1076,52 @@ def _label_of(s, o):
 
 def run(scene_path, only=None, include_low=True, culture=False):
     data = json.loads(Path(scene_path).read_text(encoding="utf-8"))
+    return run_data(data, only=only, include_low=include_low, culture=culture)
+
+
+def run_data(data, only=None, include_low=True, culture=False):
+    """In-memory API for websites; missing collections remain unknown, not empty."""
+    if not isinstance(data, dict):
+        raise ValueError("场景必须是 JSON 对象")
+    if not isinstance(data.get("meta", {}), dict):
+        raise ValueError("meta 必须是对象")
+    if data.get("meta", {}).get("unit", "m") != "m":
+        raise ValueError("坐标单位必须为 m；请先转换为米")
+    def finite(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("坐标、尺寸和角度必须为有限数值")
+    def point(value):
+        if not isinstance(value, list) or len(value) != 2:
+            raise ValueError("坐标必须为 [x, y]")
+        for v in value: finite(v)
+    ids = set()
+    for key in ("walls", "doors", "beams", "furniture", "rooms"):
+        if key not in data: continue
+        if not isinstance(data[key], list): raise ValueError(key + " 必须为数组")
+        for item in data[key]:
+            if not isinstance(item, dict): raise ValueError(key + " 中的对象格式错误")
+            oid = item.get("id")
+            if not isinstance(oid, str) or not oid or oid in ids:
+                raise ValueError("对象 id 必须为唯一非空字符串")
+            ids.add(oid)
+            if key in ("walls", "beams"):
+                point(item.get("a")); point(item.get("b"))
+                if item["a"] == item["b"]: raise ValueError("线段端点不能重合")
+            if key == "doors":
+                point(item.get("center")); point(item.get("normal"))
+                if item["normal"] == [0, 0]: raise ValueError("门法向量不能为零")
+            if key in ("furniture", "rooms"):
+                rect = item.get("rect")
+                if not isinstance(rect, dict): raise ValueError("缺少 rect")
+                for field in ("cx", "cy", "len", "wid", "heading"): finite(rect.get(field))
+                if rect["len"] <= 0 or rect["wid"] <= 0: raise ValueError("矩形尺寸必须为正")
+            for field in ("height", "width"):
+                if field in item:
+                    finite(item[field])
+                    if item[field] <= 0: raise ValueError("高度和宽度必须为正")
+    known = {r[0] for r in RULES}
+    if only is not None and set(only) - known:
+        raise ValueError("未知规则 ID: " + ", ".join(sorted(set(only) - known)))
     s = Scene(data)
     violations, passed, skipped, warnings = [], [], [], []
 
@@ -1085,10 +1131,21 @@ def run(scene_path, only=None, include_low=True, culture=False):
             "场景未标注 is_entry，已默认以第一扇门「%s」作为入户门参与判定。"
             % s.doors[0]["name"])
 
-    for rid, name, cat, sev, fn, suggestion, vtext in RULES:
-        if only and rid not in only:
-            continue
-        if not include_low and sev == "low":
+    selected = [r for r in RULES if (only is None or r[0] in only) and (include_low or r[3] != "low")]
+    dependencies = {
+        "FS-BED-001": ("walls", "furniture"),
+        "FS-BED-003": ("walls", "furniture"),
+        "FS-BED-004": ("beams", "furniture"),
+        "FS-BED-005": ("walls", "furniture"),
+        "FS-BED-006": ("walls", "furniture"),
+        "FS-GEN-004": ("walls", "furniture"),
+        "FS-KIT-001": ("furniture",),
+        "FS-LIV-001": ("walls", "furniture"),
+    }
+    for rid, name, cat, sev, fn, suggestion, vtext in selected:
+        missing = [key for key in dependencies.get(rid, ("walls", "doors", "furniture")) if key not in data]
+        if missing:
+            skipped.append({"rule_id": rid, "name": name, "reason": "缺少字段：" + ", ".join(missing)})
             continue
         try:
             res = fn(s)
@@ -1136,11 +1193,12 @@ def run(scene_path, only=None, include_low=True, culture=False):
         }
 
     return {
-        "scene": data.get("meta", {}).get("name", Path(scene_path).name),
+        "scene": data.get("meta", {}).get("name", "未命名户型"),
         "rule_version": "v1.2",
-        "rule_count": len([r for r in RULES if not only or r[0] in only]),
+        "rule_count": len(selected),
         "summary": {
             "violations": len(violations),
+            "violated_rules": len({v["rule_id"] for v in violations}),
             "by_severity": counts,
             "passed": len(passed),
             "skipped": len(skipped),
@@ -1278,7 +1336,10 @@ def main():
         ap.error("需要 --scene 参数（或用 --list 查看规则）")
 
     only = set(x.strip() for x in args.only.split(",")) if args.only else None
-    r = run(args.scene, only=only, include_low=not args.no_low, culture=args.culture)
+    try:
+        r = run(args.scene, only=only, include_low=not args.no_low, culture=args.culture)
+    except (ValueError, OSError) as exc:
+        ap.error(str(exc))
     text = to_md(r) if args.format == "md" else json.dumps(r, ensure_ascii=False, indent=2)
 
     if args.out:
