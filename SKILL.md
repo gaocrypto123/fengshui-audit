@@ -150,3 +150,9 @@ python scripts/check.py --scene scene.json --culture
 使用 `scripts/check.py` 的 `run_data(scene_dict)` 直接计算，不需要写临时文件；原来的 `run(path)` 与 CLI 保持可用。输入错误抛出 ValueError，接入侧应返回可读的输入错误。`summary.violations` 是问题实例数，`summary.violated_rules` 是命中规则数；后者加 passed 与 skipped 等于本次 rule_count。关闭 low 后 rule_count 只计实际选择的规则。
 
 法规与人因依据须分别核对；几何阈值命中不自动等于违反国家标准，不应将全部文化条目统称为强制规范。
+
+
+## 引用与推理边界（本地增强）
+默认仅形法空间关系，其他体系必须主动启用且分开呈现。读取返回值 reasoning：rule_evidence 未 verified 的，不得生成书籍原话、精确页码或“原书证明”的说法。references/evidence.md 为历史核对记录，不等于本次原页复核。
+每条机器引用须在 evidence-registry.json 中登记书籍指纹、版本、PDF物理页、印刷页、摘录、支持的具体主张、直接/间接关系和核对人。项目阈值必须标项目参数，不得冒充古籍原文。
+review_order 仅为解释顺序；当前不支持自动判断经典冲突。遇分歧先区分前提与流派；相同前提下仍冲突时并列呈现，不能自行折中生成新规则。候选改法必须在同一输入版本上全量复检；未复检不得声称改善。
