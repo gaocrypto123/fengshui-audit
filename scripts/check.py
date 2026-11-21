@@ -1192,7 +1192,7 @@ def run_data(data, only=None, include_low=True, culture=False):
             "reason": "文化参考模块未启用（默认关闭，加 --culture 开启）。",
         }
 
-    return {
+    result = {
         "scene": data.get("meta", {}).get("name", "未命名户型"),
         "rule_version": "v1.2",
         "rule_count": len(selected),
@@ -1210,6 +1210,9 @@ def run_data(data, only=None, include_low=True, culture=False):
         "handover_cards": _build_handover_cards(violations, skipped),
         "culture_reference": culture_ref,
     }
+    from reasoning import explain
+    result["reasoning"] = explain(result)
+    return result
 
 
 def to_md(r):

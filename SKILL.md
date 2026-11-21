@@ -92,6 +92,16 @@ python scripts/check.py --list                                 # 列出 20 条�
 - **地域模块**：省份/大区 → 方位五行 → 色彩/意象提示（只到色彩层，实体化建议一律降级）；依据 E7 p.134（✅）+ p.115（⚠️），推演段标 🔶。**不做地域排名、不做迁居建议、不实施财位类内容（两书核对 0 命中）。**
 - **命卦四吉方**：查 E7 p.96 大游年表（✅），只做方位陈述，不生成布局建议。
 
+## v1.3 新增：证据链与复检（首批核心规则）
+
+针对床头、门床关系、厨房关系 8 条核心规则，把「原页 → 主张 → 阈值 → 判定 → 建议 → 复检」链路落到机器可读数据：
+
+- `references/rule-chain.json`：每条核心规则登记主张文本、候选出处（标记 candidate_unverified）、阈值来源（全部标为 project_convention / geometry_consistency，均明示非书籍原文）、适用条件与复检验收标准。
+- `reasoning.attach_chains(result)`：给 violations / passed_rules / skipped 中的核心规则项附加 `chain` 字段（含 citation_status）。判定结果本身不变。
+- `reasoning.compare_results(baseline, current)`：复检对比，输出 resolved / remaining / new 与 skipped 变化；同规则对象组合变化保守计为「一解决一新增」，不假装知道是修好了。网站端为 `POST /api/recheck`。
+
+边界不变：citation_status 为 unverified 时仍不得生成原书引文或精确页码；chain 里的主张候选出处只是逐页核对的方向，不是已核实证据。
+
 ## 可选的第四层：文化参考（默认关闭）
 
 `scripts/minggua.py` 按**八宅派**约定，用出生年份算居住者命卦，再与宅向比对。
@@ -125,6 +135,7 @@ python scripts/check.py --scene scene.json --culture
 | `references/minggua.md` | 用户要求结合生辰八字、或问命卦怎么算 |
 | `scripts/lumanchi.py` | 用户报门窗/家具尺寸要查鲁班尺吉凶（`python scripts/lumanchi.py 810 880`）|
 | `scripts/region.py` | 用户提供省份/大区要地域文化参考（输出仅色彩/意象层）|
+| `references/rule-chain.json` | 需要向用户解释核心规则的依据链、阈值来源或复检标准时 |
 | `assets/demo_scene.json` | 自检 / 演示：埋了 9 处问题，应命中 9 条 |
 | `assets/demo_scene_fixed.json` | 闭环演示：把 demo 的问题逐项改掉后的结果，应只剩 1 条 |
 

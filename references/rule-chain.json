@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "scope_note": "仅覆盖首批核心规则（床头、门床关系、厨房关系）；其余规则的证据链尚未建立，reasoning.attach_chains 不会为其附加 chain 字段。",
+  "boundary_note": "thresholds 中的所有数值阈值均为项目几何转译值或工程容差，来源标记为 project_convention；没有任何阈值声称来自书籍原文。书籍主张是否成立仍待 evidence-registry.json 中对应 claim 的逐页核对。",
+  "suggestion_basis": "suggestion/recheck 由项目根据几何判定生成，属于工程调整建议，不是书籍处方。",
+  "rules": {
+    "FS-BED-001": {
+      "claim": "床头宜有稳定的实墙依靠。",
+      "claim_ids": ["CLM-BED-001-01"],
+      "candidate_sources": ["住宅设计解剖书_增田奏.pdf", "图解阳宅十书.pdf"],
+      "source_status": "candidate_unverified",
+      "applicability": {
+        "required_fields": ["walls", "furniture"],
+        "notes": "需要场景中存在 type=bed 的家具与实墙；两者任一缺失时该规则记为 skipped，不视为通过。"
+      },
+      "thresholds": [
+        {"key": "GAP_HEAD_WALL", "value": 0.05, "source": "project_convention", "note": "「贴墙」判定容差：床头边与实墙间隙超过 0.05 m 记为未贴墙。这是工程判定容差，不是书籍要求的数值。"},
+        {"key": "（墙段长 ≥ 床宽）", "value": null, "source": "geometry_consistency", "note": "床头所贴墙段长度须不短于床宽，属几何一致性检查，无独立数值阈值。"}
+      ],
+      "recheck": "复测床头边与实墙间隙 ≤ 0.05 m，墙段长 ≥ 床宽",
+      "limits": ["几何判定通过不证明书籍主张正确，只表示满足项目转译的空间条件。"]
+    },
+    "FS-BED-002": {
+      "claim": "卧床不宜处于房门开门视线直及的范围内（俗称「门冲床」）。",
+      "claim_ids": ["CLM-BED-002-01"],
+      "candidate_sources": ["图解阳宅十书.pdf", "风水探源_何晓昕.pdf"],
+      "source_status": "candidate_unverified",
+      "applicability": {
+        "required_fields": ["walls", "doors", "furniture"],
+        "notes": "需要非入户门、床家具与实墙（视线判定需要墙）；缺任一项记为 skipped。"
+      },
+      "thresholds": [
+        {"key": "DIST_DOOR_BED", "value": 2.5, "source": "project_convention", "note": "门冲床的有效判定距离：门中心距床小于 2.50 m 才参与判定。项目转译值，非书籍原文。"},
+        {"key": "ANGLE_DOOR_FAN", "value": 30.0, "source": "project_convention", "note": "开门视线锥半角 30°，是项目为「开门直及」选定的几何近似。"}
+      ],
+      "recheck": "开门视角下卧床不在 ±30° 视线锥内，或门中心距床 ≥ 2.50 m",
+      "limits": ["视线锥是对「开门即见床」的几何近似，不覆盖门扇开启方向、遮挡物高度等真实视线因素。"]
+    },
+    "FS-BED-005": {
+      "claim": "床头不宜贴靠窗墙。",
+      "claim_ids": ["CLM-BED-005-01"],
+      "candidate_sources": ["住宅设计解剖书_增田奏.pdf", "图解阳宅十书.pdf"],
+      "source_status": "candidate_unverified",
+      "applicability": {
+        "required_fields": ["walls", "furniture"],
+        "notes": "需要标记 is_window 的墙段与床家具；未提供墙体时记为 skipped。"
+      },
+      "thresholds": [
+        {"key": "GAP_HEAD_WALL", "value": 0.05, "source": "project_convention", "note": "复用「贴墙」容差判断床头边是否贴靠窗墙。工程判定容差，非书籍数值。"}
+      ],
+      "recheck": "床头边贴靠实墙段，与窗墙距离 > 0.05 m",
+      "limits": ["窗墙识别完全依赖场景 is_window 标注，标注缺失时无法判定。"]
+    },
+    "FS-BED-007": {
+      "claim": "卧床不宜正对卫生间门。",
+      "claim_ids": ["CLM-BED-007-01"],
+      "candidate_sources": ["图解阳宅十书.pdf"],
+      "source_status": "candidate_unverified",
+      "applicability": {
+        "required_fields": ["walls", "doors", "furniture"],
+        "notes": "需要可识别的卫生间门（room_type 或名称关键词）、床家具与实墙；缺任一项记为 skipped。"
+      },
+      "thresholds": [
+        {"key": "DIST_TOILET_BED", "value": 2.0, "source": "project_convention", "note": "卫生间门冲床的有效判定距离。项目转译值，非书籍原文。"},
+        {"key": "ANGLE_DOOR_FAN", "value": 30.0, "source": "project_convention", "note": "开门视线锥半角。"}
+      ],
+      "recheck": "卫生间门视线锥内不可见卧床，或常闭+排风/隔断改造完成",
+      "limits": ["卫生间门识别依赖显式 room_type 字段，降级到名称猜测时可能漏判。"]
+    },
+    "FS-KIT-001": {
+      "claim": "灶台与水槽宜保持明确间距（「水火不相冲」的空间关系主张）。",
+      "claim_ids": ["CLM-KIT-001-01"],
+      "candidate_sources": ["图解阳宅十书.pdf", "风水探源_何晓昕.pdf"],
+      "source_status": "candidate_unverified",
+      "applicability": {
+        "required_fields": ["furniture"],
+        "notes": "需要 type=stove 与 type=sink 家具各至少一件；墙体缺失不影响本条判定。"
+      },
+      "thresholds": [
+        {"key": "GAP_STOVE_SINK", "value": 0.6, "source": "project_convention", "note": "灶-槽最小间距 0.60 m，为项目转译的操作安全与动线交叉考量，不是书籍给出的数值。"}
+      ],
+      "recheck": "灶台与水槽最小间距复测 ≥ 0.60 m",
+      "limits": ["间距阈值与书籍主张是两回事：书中是否支持「水火不相冲」待核对，0.60 m 是项目选定的工程值。"]
+    },
+    "FS-KIT-002": {
+      "claim": "灶台不宜紧邻门侧，背后临人走动。",
+      "claim_ids": ["CLM-KIT-002-01"],
+      "candidate_sources": ["图解阳宅十书.pdf"],
+      "source_status": "candidate_unverified",
+      "applicability": {
+        "required_fields": ["walls", "doors", "furniture"],
+        "notes": "需要非入户门与灶台家具；缺字段记为 skipped。"
+      },
+      "thresholds": [
+        {"key": "DIST_STOVE_DOOR", "value": 0.9, "source": "project_convention", "note": "灶台与同侧门的最小距离。项目转译值。"},
+        {"key": "ANGLE_SAME_SIDE", "value": 90.0, "source": "project_convention", "note": "判定「门在灶台同侧（背后临门）」的法线夹角上限。"}
+      ],
+      "recheck": "灶台与最近内门边缘距离 ≥ 0.90 m",
+      "limits": []
+    },
+    "FS-KIT-003": {
+      "claim": "厨房门不宜正对灶台。",
+      "claim_ids": ["CLM-KIT-003-01"],
+      "candidate_sources": ["图解阳宅十书.pdf"],
+      "source_status": "candidate_unverified",
+      "applicability": {
+        "required_fields": ["walls", "doors", "furniture"],
+        "notes": "需要可识别的厨房门（room_type 或名称关键词）与灶台家具；缺字段记为 skipped。"
+      },
+      "thresholds": [
+        {"key": "DIST_DOOR_DOOR", "value": 3.0, "source": "project_convention", "note": "复用门对门的最大判定距离。项目转译值。"},
+        {"key": "ANGLE_DOOR_FAN", "value": 30.0, "source": "project_convention", "note": "开门视线锥半角。"}
+      ],
+      "recheck": "厨房门视线锥内不可见灶台",
+      "limits": ["厨房门识别依赖显式 room_type 字段，降级到名称猜测时可能漏判。"]
+    },
+    "FS-KIT-004": {
+      "claim": "灶台与卫生间门宜保持间距（「灶厕不相见」的空间关系主张）。",
+      "claim_ids": ["CLM-KIT-004-01"],
+      "candidate_sources": ["图解阳宅十书.pdf"],
+      "source_status": "candidate_unverified",
+      "applicability": {
+        "required_fields": ["walls", "doors", "furniture"],
+        "notes": "需要可识别的卫生间门与灶台家具；缺字段记为 skipped。"
+      },
+      "thresholds": [
+        {"key": "DIST_STOVE_TOILET", "value": 2.0, "source": "project_convention", "note": "灶台与卫生间门的最小距离。项目转译值，同时参考食品卫生角度的动线隔离考量，非书籍原文数值。"}
+      ],
+      "recheck": "灶台与卫生间门边缘距离 ≥ 2.00 m，或卫生间常闭+排风改造完成",
+      "limits": ["本条是文化与卫生双重考量的叠加规则，几何判定只覆盖空间距离部分。"]
+    }
+  }
+}
