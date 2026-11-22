@@ -99,6 +99,8 @@ python scripts/check.py --list                                 # 列出 20 条�
 - `references/rule-chain.json`：每条核心规则登记主张文本、候选出处（标记 candidate_unverified）、阈值来源（全部标为 project_convention / geometry_consistency，均明示非书籍原文）、适用条件与复检验收标准。
 - `reasoning.attach_chains(result)`：给 violations / passed_rules / skipped 中的核心规则项附加 `chain` 字段（含 citation_status）。判定结果本身不变。
 - `reasoning.compare_results(baseline, current)`：复检对比，输出 resolved / remaining / new 与 skipped 变化；同规则对象组合变化保守计为「一解决一新增」，不假装知道是修好了。网站端为 `POST /api/recheck`。
+- `references/classic-disagreements.json` + `reasoning.conflicts_for(rule_id)`：经典流派分歧按登记表**并列呈现**（如床位吉方的八宅与玄空两派说法），每方标注出处状态（secondary_unverified = 二手通行说法未核原书），不裁决、不调和出新规则。conflict_detection 状态为 `registry_based_listing`——按登记表呈现已实现，**自动发现登记表之外的新冲突仍未实现**。
+- `scripts/evaluate.py` + `POST /api/evaluate-options`：候选布局方案**全量复检**——每个方案在完整规则集上重跑，输出复检违规数、与基线对比的 resolved/remaining/new，按复检结果排序；用户需求（needs）原样透传、只用于在可行方案之间选择，不豁免复检。
 
 边界不变：citation_status 为 unverified 时仍不得生成原书引文或精确页码；chain 里的主张候选出处只是逐页核对的方向，不是已核实证据。
 

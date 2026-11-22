@@ -5,11 +5,14 @@ v1.3 新增：
   链路附加到诊断结果的每条违规/通过项上（仅覆盖 references/rule-chain.json
   中登记的核心规则）。
 - compare_results(baseline, current): 复检对比，输出已解决 / 仍存在 / 新增三类。
+- conflicts_for(rule_id): 按 references/classic-disagreements.json 查表返回该规则的
+  经典流派分歧（并列呈现，不裁决）；自动发现新冲突尚未实现。
 
 边界说明：
 - attach_chains 不改变判定结果，只附加解释与来源信息。
 - citation_status 为 unverified 时，调用方不得生成原书引文或精确页码。
 - compare_results 基于规则 ID + 对象集合的几何签名，不理解空间语义。
+- conflicts_for 只按登记表并列呈现流派分歧，不在登记表之外推断新冲突。
 """
 import json
 from pathlib import Path
@@ -26,6 +29,36 @@ def _rule_chains():
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8")).get("rules", {})
+
+
+_DISAGREEMENTS_CACHE = None
+
+
+def _disagreements():
+    global _DISAGREEMENTS_CACHE
+    if _DISAGREEMENTS_CACHE is None:
+        path = _REF_DIR / "classic-disagreements.json"
+        _DISAGREEMENTS_CACHE = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    return _DISAGREEMENTS_CACHE
+
+
+def conflicts_for(rule_id):
+    """该规则关联的经典流派分歧（并列呈现，不裁决）。
+
+    只按登记表查表返回；登记表之外不推断新冲突。
+    未登记分歧的规则返回空列表。
+    """
+    out = []
+    for d in _disagreements().get("disagreements", []):
+        if rule_id in d.get("rule_ids", []):
+            out.append({
+                "id": d.get("id", ""),
+                "topic": d.get("topic", ""),
+                "positions": d.get("positions", []),
+                "resolution": d.get("resolution", ""),
+                "note": d.get("note", ""),
+            })
+    return out
 
 
 def evidence_for(rule_id, registry):
@@ -49,7 +82,7 @@ def chain_for(rule_id):
         return None
     c = chains[rule_id]
     ev = evidence_for(rule_id, _registry())
-    return {
+    ch = {
         "claim": c.get("claim", ""),
         "claim_ids": c.get("claim_ids", []),
         "citation_status": ev["citation_status"],
@@ -64,6 +97,10 @@ def chain_for(rule_id):
         "suggestion_basis": "项目几何转译建议，非书籍处方。",
         "limits": c.get("limits", []),
     }
+    dis = conflicts_for(rule_id)
+    if dis:
+        ch["known_disagreements"] = dis
+    return ch
 
 
 def attach_chains(result):
@@ -145,7 +182,8 @@ def explain(result):
             "review_order": [{"stage": key, "label": label, "rules": sorted(r for r in outcomes if r.startswith(prefixes))} for key,label,prefixes in stages],
             "rule_evidence": {r: evidence_for(r, registry) for r in sorted(outcomes)},
             "conflict_policy": {"different_context": "先核对流派与适用条件，不合并", "same_context_disagreement": "保留并列观点，不自动裁决", "layout_tradeoff": "候选方案必须全量复检；需求仅参与可行方案排序"},
-            "conflict_detection": "not_implemented",
+            "conflict_detection": "registry_based_listing（仅按 classic-disagreements.json 并列呈现；自动发现新冲突 not_implemented）",
+            "disagreement_ids": sorted({d["id"] for r in outcomes for d in conflicts_for(r)}),
             "limits": ["检查顺序为解释组织，不代表已实现跨规则推理。", "几何触发不等于文献已核实或规范不合格。", "旧证据表的核对记录尚未全部与本地扫描页对应。"]}
     out["rule_chains"] = {r: chain_for(r) for r in sorted(outcomes) if chain_for(r)}
     attach_chains(result)
