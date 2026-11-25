@@ -6,12 +6,12 @@ import check
 class ValidationTests(unittest.TestCase):
  def scene(self): return json.loads((ROOT/'assets/demo_scene.json').read_text(encoding='utf-8'))
  def test_empty_input_never_passes(self):
-  r=check.run_data({});self.assertEqual(r['summary']['passed'],0);self.assertEqual(r['summary']['skipped'],20)
+  r=check.run_data({});self.assertEqual(r['summary']['passed'],0);self.assertEqual(r['summary']['skipped'],21)
  def test_missing_collections(self):
   for key in ['walls','doors','furniture']:
    d=self.scene();del d[key];self.assertGreater(check.run_data(d)['summary']['skipped'],0)
  def test_low_filter_count(self):
-  r=check.run_data(self.scene(),include_low=False);s=r['summary'];self.assertEqual(r['rule_count'],s['violated_rules']+s['passed']+s['skipped']);self.assertLess(r['rule_count'],20)
+  r=check.run_data(self.scene(),include_low=False);s=r['summary'];self.assertEqual(r['rule_count'],s['violated_rules']+s['passed']+s['skipped']);self.assertLess(r['rule_count'],21)
  def test_unknown_rule(self):
   with self.assertRaises(ValueError):check.run_data(self.scene(),only={'typo'})
  def test_invalid_values(self):

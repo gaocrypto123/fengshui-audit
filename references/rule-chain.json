@@ -1,7 +1,13 @@
 {
-  "version": 1,
-  "scope_note": "仅覆盖首批核心规则（床头、门床关系、厨房关系）；其余规则的证据链尚未建立，reasoning.attach_chains 不会为其附加 chain 字段。",
-  "boundary_note": "thresholds 中的所有数值阈值均为项目几何转译值或工程容差，来源标记为 project_convention；没有任何阈值声称来自书籍原文。书籍主张是否成立仍待 evidence-registry.json 中对应 claim 的逐页核对。",
+  "version": 2,
+  "scope_note": "覆盖核心规则：床头/门床关系/厨房关系 8 条，以及通道/门宽类 3 条（FS-GEN-003、FS-GEN-005、FS-BED-006，v2 起纳入，阈值为国标或已核验设计依据）；其余规则的证据链尚未建立，reasoning.attach_chains 不会为其附加 chain 字段。",
+  "threshold_source_legend": {
+    "national_standard": "阈值直接引用已核验国标条文（evidence-registry.verified_design_bases，含条文号/页码/书籍 SHA-256 指纹链）。仅声明数值出处，不改变该规则风水主张的 citation_status。",
+    "book_ergonomics_referenced": "项目自定阈值，但已核验的设计/人机依据中有相关参考值；note 中如实标注参考值与差异，不声称阈值源自书籍。",
+    "project_convention": "项目几何转译值或工程容差，无书籍或国标出处。",
+    "geometry_consistency": "几何一致性检查，无独立数值阈值。"
+  },
+  "boundary_note": "thresholds 按上述四类标注来源：国标类阈值可追溯到已核验的条文级证据；但任何阈值来源都不等于对应风水主张已被典籍验证——主张是否成立仍以 evidence-registry.json 中 claims 的核对状态为准（国标依据不提升风水规则的 citation_status，隔离红线见 tests/test_reasoning.py）。",
   "suggestion_basis": "suggestion/recheck 由项目根据几何判定生成，属于工程调整建议，不是书籍处方。",
   "rules": {
     "FS-BED-001": {
@@ -92,7 +98,7 @@
         "notes": "需要非入户门与灶台家具；缺字段记为 skipped。"
       },
       "thresholds": [
-        {"key": "DIST_STOVE_DOOR", "value": 0.9, "source": "project_convention", "note": "灶台与同侧门的最小距离。项目转译值。"},
+        {"key": "DIST_STOVE_DOOR", "value": 0.9, "source": "project_convention", "note": "灶台与同侧门的最小距离，项目转译值。特别声明：与 GB 50096-2011 5.3.5「双排设备净距 0.90m」数值巧合但语义不同（动线距离 vs 设备间距），不得引用该条文作为本阈值依据。"},
         {"key": "ANGLE_SAME_SIDE", "value": 90.0, "source": "project_convention", "note": "判定「门在灶台同侧（背后临门）」的法线夹角上限。"}
       ],
       "recheck": "灶台与最近内门边缘距离 ≥ 0.90 m",
@@ -128,6 +134,55 @@
       ],
       "recheck": "灶台与卫生间门边缘距离 ≥ 2.00 m，或卫生间常闭+排风改造完成",
       "limits": ["本条是文化与卫生双重考量的叠加规则，几何判定只覆盖空间距离部分。"]
+    },
+    "FS-GEN-003": {
+      "claim_type": "regulatory",
+      "claim": "套内过道（主通道）应保持足够的通行净宽。",
+      "claim_ids": [],
+      "candidate_sources": [],
+      "source_status": "national_standard_verified",
+      "applicability": {
+        "required_fields": ["walls", "doors", "furniture"],
+        "notes": "需要门与墙体/家具数据以计算门内通道净空；缺字段记为 skipped。"
+      },
+      "thresholds": [
+        {"key": "DIST_CORRIDOR_MIN", "value": 0.9, "source": "national_standard", "reference_id": "DB-GB38-003", "clause": "GB 55038-2025 4.1.13", "note": "通往厨房/卫生间/贮藏室过道净宽下限 0.90m（已核验，印 p.10）。条文分级：入口 1.10 / 卧室起居 1.00 / 厨卫贮藏 0.90；场景无法区分过道服务对象，项目统一按最低档 0.90 判，即只拦截低于全部档位下限的情况，复检时应按实际用途档复核。另有 GB 50096-2011 5.7.1 同源条文（DB-GB5-005），新规优先。"}
+      ],
+      "recheck": "门内通道净宽复测 ≥ 0.90 m（按实际用途档：入口 1.10 / 卧室 1.00 / 厨卫 0.90）",
+      "limits": ["本条为规范合规主张（claim_type=regulatory），不是风水主张；判定通过只表示满足国标净宽下限，不验证任何文化主张。"]
+    },
+    "FS-GEN-005": {
+      "claim_type": "regulatory",
+      "claim": "各部位门应满足分级通行净宽下限（户门/卧室门/厨卫门）。",
+      "claim_ids": [],
+      "candidate_sources": [],
+      "source_status": "national_standard_verified",
+      "applicability": {
+        "required_fields": ["doors"],
+        "notes": "所有门必须显式声明 width；任一门缺失时整条规则记 skipped，缺省兑底值不得当作声明值。门类型识别：is_entry > room_type/名称关键词；未分类内门按卧室档 0.80 保守判定。"
+      },
+      "thresholds": [
+        {"key": "DOOR_WIDTH_ENTRY", "value": 0.9, "source": "national_standard", "reference_id": "DB-GB38-004", "clause": "GB 55038-2025 4.1.14", "note": "新建住宅户门通行净宽 ≥ 0.90m（已核验，印 p.10；既有住宅改造为 0.80）。同源：GB 50096-2011 5.8.7 户门洞口 1.00m（DB-GB5-006）——条文口径为洞口/门洞尺寸，项目按场景 width 字段（洞口/门宽）保守近似。"},
+        {"key": "DOOR_WIDTH_ROOM", "value": 0.8, "source": "national_standard", "reference_id": "DB-GB38-004", "clause": "GB 55038-2025 4.1.14", "note": "卧室门通行净宽 ≥ 0.80m（已核验）；未分类内门亦按此档保守判定。"},
+        {"key": "DOOR_WIDTH_KITBATH", "value": 0.7, "source": "national_standard", "reference_id": "DB-GB38-004", "clause": "GB 55038-2025 4.1.14", "note": "厨房门与卫生间门通行净宽 ≥ 0.70m（已核验）。"}
+      ],
+      "recheck": "实测各门通行净宽：户门 ≥ 0.90 m、卧室门 ≥ 0.80 m、厨卫门 ≥ 0.70 m（实测净宽需扣除门扇开启占位，不得只量洞口）",
+      "limits": ["本条为规范合规主张（claim_type=regulatory），不是风水主张。场景 width 为洞口/门宽字段，未扣除门扇开启占位；条文说的是「通行净宽」，判定按「洞口宽 ≥ 净宽下限」的保守近似，复检应实测净宽。"]
+    },
+    "FS-BED-006": {
+      "claim": "卧床侧面应留出下床通道。",
+      "claim_ids": [],
+      "candidate_sources": ["住宅设计解剖书_增田奏.pdf"],
+      "source_status": "design_basis_referenced",
+      "applicability": {
+        "required_fields": ["walls", "furniture"],
+        "notes": "需要床家具与墙体/其他家具以计算床侧净空；缺字段记为 skipped。"
+      },
+      "thresholds": [
+        {"key": "CLEARANCE_BED_SIDE", "value": 0.6, "source": "book_ergonomics_referenced", "reference_id": ["DB-ZH-003", "DB-ER-001"], "note": "0.60 m 为项目自定值，非书籍原文。已核验参考值：《住宅设计解剖书》床侧最小通道 MIN.450mm（DB-ZH-003，印 p.56）；《人体工程学图解》床边通道建议 914mm（DB-ER-001）。0.60 介于两者之间，既高于书标最低值也低于人机舒适值，复检时可按 0.45 最低 / 0.914 舒适双档报告。"}
+      ],
+      "recheck": "床两侧至少一侧净空 ≥ 0.60 m（参考双档：最低 0.45 m / 舒适 0.914 m）",
+      "limits": ["阈值不等于书籍原文数值，只是项目在两份已核验参考值之间选定的自定值；设计依据主张（DB-ZH-002/003）支持「床侧需通道」，但不验证任何风水主张。"]
     }
   }
 }

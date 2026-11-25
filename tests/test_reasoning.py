@@ -37,6 +37,75 @@ class EvidenceTests(unittest.TestCase):
             self.assertFalse(ch["verified_claim_ids"])
         self.assertFalse(evidence_for("FS-BED-001", reg)["allow_generated_quote"])
 
+class ThresholdSourceTests(unittest.TestCase):
+    """v1.3：阈值来源分四层标注（national_standard / book_ergonomics_referenced /
+    project_convention / geometry_consistency）。凡声称国标或书证来源的阈值，
+    必须指向 evidence-registry 中真实存在且已核验的条目——防止无证据的来源标注。"""
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        root = Path(__file__).resolve().parents[1]
+        cls.chain = json.loads((root / "references" / "rule-chain.json").read_text(encoding="utf-8"))
+        reg = json.loads((root / "references" / "evidence-registry.json").read_text(encoding="utf-8"))
+        cls.db = {b["id"]: b for b in reg["verified_design_bases"]["claims"]}
+
+    def _refs(self, ref):
+        return ref if isinstance(ref, list) else [ref]
+
+    def test_national_standard_thresholds_have_verified_reference(self):
+        for rid, rc in self.chain["rules"].items():
+            for t in rc.get("thresholds", []):
+                if t.get("source") != "national_standard":
+                    continue
+                refs = t.get("reference_id")
+                self.assertTrue(refs, "%s/%s 标了 national_standard 却没有 reference_id" % (rid, t["key"]))
+                for r in self._refs(refs):
+                    self.assertIn(r, self.db, "%s/%s 引用的 %s 不在登记表" % (rid, t["key"], r))
+                    self.assertEqual(self.db[r]["status"], "verified",
+                                     "%s/%s 引用的 %s 状态非 verified" % (rid, t["key"], r))
+                    self.assertEqual(self.db[r].get("source_type"), "national_standard",
+                                     "%s/%s 引用的 %s 不是国标条目" % (rid, t["key"], r))
+                    self.assertTrue(t.get("clause"), "%s/%s 缺条文号 clause" % (rid, t["key"]))
+
+    def test_book_ergonomics_thresholds_have_reference(self):
+        for rid, rc in self.chain["rules"].items():
+            for t in rc.get("thresholds", []):
+                if t.get("source") == "book_ergonomics_referenced":
+                    self.assertTrue(t.get("reference_id"),
+                                    "%s/%s 标了 book_ergonomics_referenced 却没有参考条目" % (rid, t["key"]))
+
+    def test_regulatory_rules_do_not_impersonate_fengshui_claims(self):
+        """国标合规规则（claim_type=regulatory）不得挂风水主张，citation_status 必须为 unverified。"""
+        for rid, rc in self.chain["rules"].items():
+            if rc.get("claim_type") == "regulatory":
+                self.assertEqual(rc.get("claim_ids"), [], "%s 是 regulatory 却挂了风水主张" % rid)
+                self.assertEqual(rc.get("candidate_sources"), [], "%s 是 regulatory 却登记了书籍候选" % rid)
+                ch = chain_for(rid)
+                self.assertEqual(ch["citation_status"], "unverified",
+                                 "%s 的国标依据不得提升风水主张的验证状态" % rid)
+
+    def test_door_width_rules_use_gb55038_4_1_14(self):
+        """FS-GEN-005 三个门宽阈值必须指向 GB 55038-2025 4.1.14（DB-GB38-004）。"""
+        ch = chain_for("FS-GEN-005")
+        keys = {t["key"]: t for t in ch["thresholds"]}
+        for key in ("DOOR_WIDTH_ENTRY", "DOOR_WIDTH_ROOM", "DOOR_WIDTH_KITBATH"):
+            self.assertEqual(keys[key]["source"], "national_standard")
+            self.assertEqual(keys[key]["reference_id"], "DB-GB38-004")
+            self.assertIn("4.1.14", keys[key]["clause"])
+        self.assertEqual((keys["DOOR_WIDTH_ENTRY"]["value"],
+                          keys["DOOR_WIDTH_ROOM"]["value"],
+                          keys["DOOR_WIDTH_KITBATH"]["value"]), (0.9, 0.8, 0.7))
+
+    def test_stove_door_threshold_not_falsely_attributed_to_gb(self):
+        """DIST_STOVE_DOOR 0.90 与 GB50096 5.3.5 设备净距数值巧合：必须标注语义差异且不得引用国标来源。"""
+        ch = chain_for("FS-KIT-002")
+        t = {x["key"]: x for x in ch["thresholds"]}["DIST_STOVE_DOOR"]
+        self.assertEqual(t["source"], "project_convention")
+        self.assertNotIn("reference_id", t)
+        self.assertIn("语义不同", t["note"])
+
+
 class ChainTests(unittest.TestCase):
     def test_core_rule_has_chain_with_pending_citation(self):
         """核心规则能取到证据链；登记表中主张为 pending，故引用状态必须为未核实。"""

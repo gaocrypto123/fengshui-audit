@@ -71,8 +71,8 @@ class TestDemoRegression(unittest.TestCase):
     def test_all_rules_accounted(self):
         s = self.demo["summary"]
         total = s["violations"] + s["passed"] + s["skipped"]
-        self.assertEqual(total, len(check.RULES))  # v1.2 起为 20 条
-        self.assertEqual(len(check.RULES), 20)
+        self.assertEqual(total, len(check.RULES))  # v1.3 起为 21 条
+        self.assertEqual(len(check.RULES), 21)
 
 
 class TestV11Fixes(unittest.TestCase):
@@ -229,6 +229,69 @@ class TestV12CultureModules(unittest.TestCase):
         for c in cards:
             for it in c["items"]:
                 self.assertIn("accept", it)
+
+
+class TestV13DoorWidth(unittest.TestCase):
+    """v1.3 新增：FS-GEN-005 门通行净宽分级（GB 55038-2025 4.1.14）。"""
+
+    def _door(self, **kw):
+        base = {"id": "D-t", "name": "测试门", "center": [2.0, 0.0],
+                "normal": [0.0, 1.0], "width": 0.9}
+        base.update(kw)
+        return base
+
+    def _scene(self, doors):
+        return {
+            "meta": {"name": "t"},
+            "walls": [{"id": "W1", "a": [0, 0], "b": [10, 0], "is_window": False}],
+            "doors": doors,
+            "furniture": [],
+        }
+
+    def test_entry_door_below_090_hits(self):
+        d = self._scene([self._door(width=0.85, is_entry=True)])
+        r = run_scene(d)
+        self.assertTrue(any(v["rule_id"] == "FS-GEN-005" for v in r["violations"]))
+
+    def test_entry_door_at_090_passes(self):
+        d = self._scene([self._door(width=0.90, is_entry=True)])
+        r = run_scene(d)
+        self.assertFalse(any(v["rule_id"] == "FS-GEN-005" for v in r["violations"]))
+
+    def test_bedroom_door_below_080_hits(self):
+        d = self._scene([self._door(width=0.75, name="卧室门", id="D-bed")])
+        r = run_scene(d)
+        self.assertTrue(any(v["rule_id"] == "FS-GEN-005" for v in r["violations"]))
+
+    def test_kitchen_bath_door_below_070_hits(self):
+        d = self._scene([self._door(width=0.65, name="卫生间门", id="D-wc")])
+        r = run_scene(d)
+        self.assertTrue(any(v["rule_id"] == "FS-GEN-005" for v in r["violations"]))
+
+    def test_kitchen_bath_door_070_boundary_passes(self):
+        d = self._scene([self._door(width=0.70, name="厨房门", id="D-kit")])
+        r = run_scene(d)
+        self.assertFalse(any(v["rule_id"] == "FS-GEN-005" for v in r["violations"]))
+
+    def test_unclassified_door_uses_bedroom_tier(self):
+        d = self._scene([self._door(width=0.75, name="过道门", id="D-x")])
+        r = run_scene(d)
+        self.assertTrue(any(v["rule_id"] == "FS-GEN-005" for v in r["violations"]))
+
+    def test_missing_width_goes_to_skipped(self):
+        """缺 width 声明不得靠缺省兑底 0.9 静默通过——必须记 skipped。"""
+        d = self._scene([{"id": "D-t", "name": "测试门", "center": [2.0, 0.0],
+                          "normal": [0.0, 1.0], "is_entry": True}])
+        r = run_scene(d)
+        self.assertTrue(any(k["rule_id"] == "FS-GEN-005" for k in r["skipped"]))
+        self.assertFalse(any(v["rule_id"] == "FS-GEN-005" for v in r["violations"]))
+        self.assertFalse(any(p["rule_id"] == "FS-GEN-005" for p in r["passed_rules"]))
+
+    def test_demo_door_widths_all_pass(self):
+        """demo 场景五扇门全部达标，FS-GEN-005 应在 passed（回归锁不动）。"""
+        d = json.loads((ASSETS / "demo_scene.json").read_text(encoding="utf-8"))
+        r = run_scene(d)
+        self.assertTrue(any(p["rule_id"] == "FS-GEN-005" for p in r["passed_rules"]))
 
 
 if __name__ == "__main__":

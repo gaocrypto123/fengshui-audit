@@ -14,7 +14,7 @@ description: 审查住宅户型与家具布局，基于二维结构化数据检�
 
 | 层 | 做什么 | 在哪 |
 |---|---|---|
-| **L1 判定** | 纯几何计算，20 条规则出违规清单，并按施工工序组织成交底卡。不做解释，不说人话 | `scripts/check.py` |
+| **L1 判定** | 纯几何计算，21 条规则出违规清单，并按施工工序组织成交底卡。不做解释，不说人话 | `scripts/check.py` |
 | **L2 知识** | 每条规则的依据、阈值来源、文献出处 | `references/rules.md`、`evidence.md`、`parameters.md` |
 | **文化参考层** | 鲁班尺核查（`scripts/lumanchi.py`）、地域五行（`scripts/region.py`）、命卦+四吉方（`scripts/minggua.py`）——均默认/按需关闭，只做文化陈述，不进违规 | 随 `--culture` 或独立 CLI 调用 |
 | **L3 表达** | 语气分级、长短版、语言红线 | `references/output-style.md` |
@@ -44,7 +44,7 @@ description: 审查住宅户型与家具布局，基于二维结构化数据检�
 python scripts/check.py --scene <你的场景.json>                # JSON 结果
 python scripts/check.py --scene <场景.json> --format md        # 人读的报告
 python scripts/check.py --scene <场景.json> --only FS-BED-001,FS-KIT-001   # 只跑指定规则
-python scripts/check.py --list                                 # 列出 20 条规则
+python scripts/check.py --list                                 # 列出 21 条规则
 ```
 
 先跑 `assets/demo_scene.json` 验证环境正常——它埋了 9 处问题，应命中 9 条。
@@ -92,15 +92,24 @@ python scripts/check.py --list                                 # 列出 20 条�
 - **地域模块**：省份/大区 → 方位五行 → 色彩/意象提示（只到色彩层，实体化建议一律降级）；依据 E7 p.134（✅）+ p.115（⚠️），推演段标 🔶。**不做地域排名、不做迁居建议、不实施财位类内容（两书核对 0 命中）。**
 - **命卦四吉方**：查 E7 p.96 大游年表（✅），只做方位陈述，不生成布局建议。
 
-## v1.3 新增：证据链与复检（首批核心规则）
+## v1.3 新增：证据链、复检与阈值国标化（首批核心规则）
 
-针对床头、门床关系、厨房关系 8 条核心规则，把「原页 → 主张 → 阈值 → 判定 → 建议 → 复检」链路落到机器可读数据：
+针对床头、门床关系、厨房关系 8 条核心规则 + 通道/门宽类 3 条，把「原页 → 主张 → 阈值 → 判定 → 建议 → 复检」链路落到机器可读数据：
 
-- `references/rule-chain.json`：每条核心规则登记主张文本、候选出处（标记 candidate_unverified）、阈值来源（全部标为 project_convention / geometry_consistency，均明示非书籍原文）、适用条件与复检验收标准。
+- `references/rule-chain.json`：每条登记主张文本、候选出处（candidate_unverified）、阈值来源（四层标注：national_standard / book_ergonomics_referenced / project_convention / geometry_consistency，见 threshold_source_legend）、适用条件与复检验收标准。
 - `reasoning.attach_chains(result)`：给 violations / passed_rules / skipped 中的核心规则项附加 `chain` 字段（含 citation_status）。判定结果本身不变。
 - `reasoning.compare_results(baseline, current)`：复检对比，输出 resolved / remaining / new 与 skipped 变化；同规则对象组合变化保守计为「一解决一新增」，不假装知道是修好了。网站端为 `POST /api/recheck`。
 - `references/classic-disagreements.json` + `reasoning.conflicts_for(rule_id)`：经典流派分歧按登记表**并列呈现**（如床位吉方的八宅与玄空两派说法），每方标注出处状态（secondary_unverified = 二手通行说法未核原书），不裁决、不调和出新规则。conflict_detection 状态为 `registry_based_listing`——按登记表呈现已实现，**自动发现登记表之外的新冲突仍未实现**。
 - `scripts/evaluate.py` + `POST /api/evaluate-options`：候选布局方案**全量复检**——每个方案在完整规则集上重跑，输出复检违规数、与基线对比的 resolved/remaining/new，按复检结果排序；用户需求（needs）原样透传、只用于在可行方案之间选择，不豁免复检。
+
+**阈值来源升级（v1.3 后期）**：能对上国标的阈值从 project_convention 升为 national_standard 并携带条文级证据引用（reference_id → evidence-registry 已核验条目，含条文号/页码/书籍 SHA-256 指纹）：
+
+- 新增 **FS-GEN-005 门通行净宽分级**（规则 20 → 21，claim_type=regulatory）：户门 ≥0.90 / 卧室门 ≥0.80 / 厨卫门 ≥0.70，直接采用 GB 55038-2025 4.1.14（已核验 DB-GB38-004）。门必须显式声明 width，任一门缺失整条记 skipped。
+- FS-GEN-003 主通道净宽 0.90：来源升级为 GB 55038-2025 4.1.13（DB-GB38-003），档位取舍如实标注（项目取最低档，复检按实际用途档）。
+- FS-BED-006 床侧通道 0.60：项目自定值，标注已核参考值（解剖书 MIN.450 / 人机 914，双档报告）。
+- FS-KIT-002 灶-门距离 0.90：与 GB 50096 5.3.5 设备净距**数值巧合但语义不同**，已显式标注不得冒充引用。
+- 隔离红线不变：国标依据只声明阈值出处，**不提升风水主张的 citation_status**；
+  regulatory 规则不挂风水主张（claims 无对应条目），测试固化见 tests/test_reasoning.py ThresholdSourceTests。
 
 边界不变：citation_status 为 unverified 时仍不得生成原书引文或精确页码；chain 里的主张候选出处只是逐页核对的方向，不是已核实证据。
 
@@ -108,7 +117,7 @@ python scripts/check.py --list                                 # 列出 20 条�
 
 `scripts/minggua.py` 按**八宅派**约定，用出生年份算居住者命卦，再与宅向比对。
 
-**它不在 20 条判定里，也不该往里挤。** 结果只出现在输出的 `culture_reference` 字段：
+**它不在 21 条判定里，也不该往里挤。** 结果只出现在输出的 `culture_reference` 字段：
 不进入 `violations`、不计入 severity 统计、不生成任何改动建议。
 
 ```bash
@@ -117,8 +126,8 @@ python scripts/check.py --scene scene.json --culture
 
 启用条件：场景 `meta.owner` 里有 `birth_year` 和 `gender`；缺了就如实说缺什么。
 
-为什么单独拎出来——这 20 条每条都能用国标或人体工程学撑起第二条腿，命卦撑不起来。
-掺进判定层，被问"这不就是算命吗"的时候，前面 20 条的论证会被一起拖下水。
+为什么单独拎出来——这 21 条每条都能用国标或人体工程学撑起第二条腿，命卦撑不起来。
+掺进判定层，被问"这不就是算命吗"的时候，前面 21 条的论证会被一起拖下水。
 分开摆，反而能主动说："我们区分了可验证的空间约束与不可验证的文化解释。"
 
 算法表、流派局限、5 黄寄宫处理见 `references/minggua.md`。

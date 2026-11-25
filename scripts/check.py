@@ -40,13 +40,13 @@ PARAMS = {
     "ANGLE_DOOR_FAN": 30.0,    # 门/镜视线锥半角
     "ANGLE_ALIGNED": 15.0,     # 近似共线判定角
     "DIST_DOOR_BED": 2.50,     # 门冲床有效距离
-    "DIST_CORRIDOR_MIN": 0.90, # 主通道最小净宽（对齐 GB 55038-2025 通厨卫下限）
+    "DIST_CORRIDOR_MIN": 0.90, # 主通道最小净宽（GB 55038-2025 4.1.13 通往厨/卫/贮藏过道下限 0.90m，已核验 DB-GB38-003；卧室/起居室档为 1.00m、入口档 1.10m，项目按最严适用档即最低档取值）
     # v1.1 收敛进来的阈值（原先散落在各规则函数里）
     "DIST_MIRROR_BED": 4.00,   # 镜-床最大距离（FS-BED-003）
     "DIST_ENTRY_STOVE": 5.00,  # 入户门-灶台最大距离（FS-ENT-002）
     "DIST_DOOR_DOOR": 3.00,    # 门对门 / 灶对厨房门 / 镜对大门最大距离
-    "DIST_STOVE_DOOR": 0.90,   # 灶台-侧门最小距离（FS-KIT-002）
-    "CLEARANCE_BED_SIDE": 0.60,# 床侧通道最小净空（FS-BED-006）
+    "DIST_STOVE_DOOR": 0.90,   # 灶台-侧门最小距离（FS-KIT-002；注意：与 GB50096 5.3.5 双排设备净距 0.90m 数值巧合但语义不同，不得引用该条文作为本阈值依据）
+    "CLEARANCE_BED_SIDE": 0.60,# 床侧通道最小净空（FS-BED-006；项目自定值，参考：解剖书 MIN.450mm 已核验 DB-ZH-003、人体工程学 914mm 已核验 DB-ERGO-001，0.60 介于两者之间，非书籍原文）
     "CLEARANCE_SEARCH": 1.50,  # 净空搜索最大距离
     "HEIGHT_BLOCK_WIN": 1.20,  # 窗前遮光的最小家具高度
     "BAND_WINDOW": 0.50,       # 窗前采光带深度
@@ -55,6 +55,10 @@ PARAMS = {
     # v1.2 新增（依据见 references/evidence.md E7/E8 与国标条目）
     "DIST_STOVE_TOILET": 2.00, # 灶台-卫生间门最小距离（FS-KIT-004）
     "DIST_TOILET_BED": 2.00,   # 卫生间门-床最小距离（FS-BED-007）
+    # v1.3 新增：门通行净宽分级（依据 GB 55038-2025 4.1.14，已核验 DB-GB38-004）
+    "DOOR_WIDTH_ENTRY": 0.90,   # 新建住宅户门通行净宽下限
+    "DOOR_WIDTH_ROOM": 0.80,    # 卧室门通行净宽下限（未分类内门亦按此档保守判定）
+    "DOOR_WIDTH_KITBATH": 0.70, # 厨房门/卫生间门通行净宽下限
 }
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -214,6 +218,7 @@ class Scene:
                 "center": tuple(d["center"]),
                 "normal": norm(tuple(d["normal"])),
                 "width": float(d.get("width", 0.9)),
+                "has_width": "width" in d,  # 显式声明才参与门宽判定，缺省兑底值不算
                 "is_entry": bool(d.get("is_entry", False)),
                 "room_type": str(d.get("room_type", "")),  # 显式房间类型，优先于名称猜测
             })
@@ -722,6 +727,46 @@ def r_gen004(s):
     return out or None
 
 
+def _is_bedroom_door(d):
+    """识别卧室门：优先显式 room_type 字段，降级到名称/ID 关键词。"""
+    rt = str(d.get("room_type", "")).lower()
+    if rt:
+        return rt in ("bedroom", "bed")
+    return "卧" in d["name"] or "bed" in d["id"].lower()
+
+
+def r_gen005(s):
+    """门通行净宽分级校验（GB 55038-2025 4.1.14，已核验 DB-GB38-004）。
+
+    户门 ≥0.90m、卧室门 ≥0.80m、厨卫门 ≥0.70m；未分类内门按卧室档 0.80 保守判定。
+    任一门缺 width 声明时整条规则 SKIP（缺省兑底 0.9 不得当作用户声明值）。
+    口径说明：width 为场景声明的门宽/洞口宽，未扣除门扇开启占位；条文说的是
+    「通行净宽」，本判定按「洞口宽 ≥ 净宽下限」的保守近似，复检时应实测净宽。
+    """
+    for d in s.doors:
+        if not d.get("has_width"):
+            return ("SKIP", "门「%s」未声明 width 字段，门通行净宽（FS-GEN-005）无法核验" % d["name"])
+    out = []
+    for d in s.doors:
+        if d["is_entry"]:
+            need, kind = PARAMS["DOOR_WIDTH_ENTRY"], "户门"
+        elif _is_kitchen_door(d) or _is_toilet_door(d):
+            need, kind = PARAMS["DOOR_WIDTH_KITBATH"], "厨房/卫生间门"
+        elif _is_bedroom_door(d):
+            need, kind = PARAMS["DOOR_WIDTH_ROOM"], "卧室门"
+        else:
+            need, kind = PARAMS["DOOR_WIDTH_ROOM"], "未分类内门（按卧室档）"
+        if d["width"] < need:
+            out.append({
+                "objects": [d["id"]],
+                "detail": "「%s」宽 %.2f m，低于 %s下限 %.2f m"
+                          "（GB 55038-2025 4.1.14，按洞口宽保守近似，复检应实测通行净宽）"
+                          % (d["name"], d["width"], kind, need),
+                "measured": round(d["width"], 2),
+            })
+    return out or None
+
+
 def r_kit001(s):
     """水火不相冲：灶台与水槽间距 < GAP_STOVE_SINK。"""
     out = []
@@ -920,6 +965,9 @@ RULES = [
     ("FS-GEN-004", "窗前遮光", "general", "low", r_gen004,
      "高家具移离窗前，采光面留空。",
      "高家具遮挡窗前采光面。传统讲「明堂开阔、纳气」；现代对应日照与采光质量下降。"),
+    ("FS-GEN-005", "门通行净宽分级", "general", "medium", r_gen005,
+     "换门或调整门洞（改洞口需结构复核），使户门 ≥ 0.90 m、卧室门 ≥ 0.80 m、厨卫门 ≥ 0.70 m。",
+     "门通行净宽不足。GB 55038-2025（全文强制）4.1.14：户门通行净宽 ≥ 0.90 m、卧室门 ≥ 0.80 m、厨房门与卫生间门 ≥ 0.70 m。"),
     ("FS-KIT-001", "灶台-水槽间距过近（「水火不相冲」几何转译）", "kitchen", "high", r_kit001,
      "拉开灶台与水槽间距至 ≥ 0.60 m，或中间插入操作台。",
      "灶台与水槽间距过近。传统有「水火不相冲」之说；操作安全上，油溅遇水、动线交叉也确实不利。"),
@@ -958,6 +1006,7 @@ RULE_STAGE = {
     "FS-BED-003": "acceptance", "FS-BED-005": "acceptance",
     "FS-BED-006": "acceptance", "FS-GEN-002": "acceptance",
     "FS-GEN-003": "acceptance", "FS-GEN-004": "acceptance",
+    "FS-GEN-005": "masonry",   # 换门/改门洞属泥木阶段
     "FS-LIV-001": "acceptance", "FS-LIV-002": "acceptance",
 }
 
@@ -976,6 +1025,7 @@ RULE_ACCEPT = {
     "FS-GEN-002": "镜面法线与镜→门连线夹角 ≥ 30°",
     "FS-GEN-003": "门内通道净宽复测 ≥ 0.90 m",
     "FS-GEN-004": "窗前 0.50 m 采光带内无高于 1.20 m 的家具",
+    "FS-GEN-005": "实测各门通行净宽：户门 ≥ 0.90 m、卧室门 ≥ 0.80 m、厨卫门 ≥ 0.70 m",
     "FS-KIT-001": "灶台与水槽最小间距复测 ≥ 0.60 m",
     "FS-KIT-002": "灶台与最近内门边缘距离 ≥ 0.90 m",
     "FS-KIT-003": "厨房门视线锥内不可见灶台",
@@ -1139,6 +1189,7 @@ def run_data(data, only=None, include_low=True, culture=False):
         "FS-BED-005": ("walls", "furniture"),
         "FS-BED-006": ("walls", "furniture"),
         "FS-GEN-004": ("walls", "furniture"),
+        "FS-GEN-005": ("doors",),
         "FS-KIT-001": ("furniture",),
         "FS-LIV-001": ("walls", "furniture"),
     }
@@ -1194,7 +1245,7 @@ def run_data(data, only=None, include_low=True, culture=False):
 
     result = {
         "scene": data.get("meta", {}).get("name", "未命名户型"),
-        "rule_version": "v1.2",
+        "rule_version": "v1.3",
         "rule_count": len(selected),
         "summary": {
             "violations": len(violations),
