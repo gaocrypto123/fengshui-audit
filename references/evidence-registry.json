@@ -1,13 +1,18 @@
 {
-  "version": 2,
+  "version": 3,
   "claims": [
     {
       "id": "CLM-BED-001-01",
-      "rule_ids": ["FS-BED-001"],
+      "rule_ids": [
+        "FS-BED-001"
+      ],
       "supported_claim": "床头宜有稳定的实墙依靠。",
       "status": "pending",
       "relation": "direct",
-      "candidate_books": ["住宅设计解剖书_增田奏.pdf", "图解阳宅十书.pdf"],
+      "candidate_books": [
+        "住宅设计解剖书_增田奏.pdf",
+        "图解阳宅十书.pdf"
+      ],
       "excerpt": "",
       "book_sha256": "",
       "edition": "",
@@ -18,11 +23,16 @@
     },
     {
       "id": "CLM-BED-002-01",
-      "rule_ids": ["FS-BED-002"],
+      "rule_ids": [
+        "FS-BED-002"
+      ],
       "supported_claim": "卧床不宜处于房门开门视线直及的范围内（俗称「门冲床」）。",
       "status": "pending",
       "relation": "direct",
-      "candidate_books": ["图解阳宅十书.pdf", "风水探源_何晓昕.pdf"],
+      "candidate_books": [
+        "图解阳宅十书.pdf",
+        "风水探源_何晓昕.pdf"
+      ],
       "excerpt": "",
       "book_sha256": "",
       "edition": "",
@@ -33,11 +43,16 @@
     },
     {
       "id": "CLM-BED-005-01",
-      "rule_ids": ["FS-BED-005"],
+      "rule_ids": [
+        "FS-BED-005"
+      ],
       "supported_claim": "床头不宜贴靠窗墙。",
       "status": "pending",
       "relation": "direct",
-      "candidate_books": ["住宅设计解剖书_增田奏.pdf", "图解阳宅十书.pdf"],
+      "candidate_books": [
+        "住宅设计解剖书_增田奏.pdf",
+        "图解阳宅十书.pdf"
+      ],
       "excerpt": "",
       "book_sha256": "",
       "edition": "",
@@ -48,11 +63,15 @@
     },
     {
       "id": "CLM-BED-007-01",
-      "rule_ids": ["FS-BED-007"],
+      "rule_ids": [
+        "FS-BED-007"
+      ],
       "supported_claim": "卧床不宜正对卫生间门。",
       "status": "pending",
       "relation": "direct",
-      "candidate_books": ["图解阳宅十书.pdf"],
+      "candidate_books": [
+        "图解阳宅十书.pdf"
+      ],
       "excerpt": "",
       "book_sha256": "",
       "edition": "",
@@ -63,11 +82,16 @@
     },
     {
       "id": "CLM-KIT-001-01",
-      "rule_ids": ["FS-KIT-001"],
+      "rule_ids": [
+        "FS-KIT-001"
+      ],
       "supported_claim": "灶台与水槽宜保持明确间距（「水火不相冲」的空间关系主张）。",
       "status": "pending",
       "relation": "direct",
-      "candidate_books": ["图解阳宅十书.pdf", "风水探源_何晓昕.pdf"],
+      "candidate_books": [
+        "图解阳宅十书.pdf",
+        "风水探源_何晓昕.pdf"
+      ],
       "excerpt": "",
       "book_sha256": "",
       "edition": "",
@@ -78,11 +102,15 @@
     },
     {
       "id": "CLM-KIT-002-01",
-      "rule_ids": ["FS-KIT-002"],
+      "rule_ids": [
+        "FS-KIT-002"
+      ],
       "supported_claim": "灶台不宜紧邻门侧，背后临人走动。",
       "status": "pending",
       "relation": "direct",
-      "candidate_books": ["图解阳宅十书.pdf"],
+      "candidate_books": [
+        "图解阳宅十书.pdf"
+      ],
       "excerpt": "",
       "book_sha256": "",
       "edition": "",
@@ -93,11 +121,15 @@
     },
     {
       "id": "CLM-KIT-003-01",
-      "rule_ids": ["FS-KIT-003"],
+      "rule_ids": [
+        "FS-KIT-003"
+      ],
       "supported_claim": "厨房门不宜正对灶台。",
       "status": "pending",
       "relation": "direct",
-      "candidate_books": ["图解阳宅十书.pdf"],
+      "candidate_books": [
+        "图解阳宅十书.pdf"
+      ],
       "excerpt": "",
       "book_sha256": "",
       "edition": "",
@@ -108,11 +140,15 @@
     },
     {
       "id": "CLM-KIT-004-01",
-      "rule_ids": ["FS-KIT-004"],
+      "rule_ids": [
+        "FS-KIT-004"
+      ],
       "supported_claim": "灶台与卫生间门宜保持间距（「灶厕不相见」的空间关系主张）。",
       "status": "pending",
       "relation": "direct",
-      "candidate_books": ["图解阳宅十书.pdf"],
+      "candidate_books": [
+        "图解阳宅十书.pdf"
+      ],
       "excerpt": "",
       "book_sha256": "",
       "edition": "",
@@ -122,5 +158,333 @@
       "note": "候选出处仅为逐页核对的方向，未经原页核对，不得作为引用依据；具体距离数值为项目转译，不来自书籍。"
     }
   ],
-  "note": "本表登记的是主张本身及其候选出处；所有主张均处 pending 状态，未经逐页核对。核对完成前，任何调用方不得为这些主张生成原书引文、精确页码或「原书证明」表述。既有Markdown核对记录保留在 evidence.md，但不自动提升为机器可引用证据。"
+  "note": "claims 中的 8 条风水主张全部保持 pending——OCR 核对未发现能直接支持其字面表述的原文。已核实的人体工程学依据单独放在 verified_design_bases，且 rule_ids 为空，不影响风水规则的引用状态。既有 Markdown 核对记录保留在 evidence.md，但不自动提升为机器可引用证据。",
+  "verified_design_bases": {
+    "purpose": "记录OCR+原图核对后确认的真实书籍依据。这些依据支持的是人体工程学/设计尺度主张，不是风水主张。",
+    "boundary": "本区块所有条目 rule_ids 为空，不参与 evidence_for() 对风水规则的核验；任何情况下不得据此声称某条风水规则已获原书证明。allow_generated_quote 仍恒为 false，摘录仅供人工复核，不自动进入用户输出。",
+    "method": "GB条文自文字版PDF提取并原图复核；扫描页经RapidOCR(PaddleOCR离线引擎)识别后渲染原图逐字核对页码与原文；仅确认后登记。",
+    "claims": [
+      {
+        "id": "DB-ZH-001",
+        "rule_ids": [],
+        "supported_claim": "床的位置会影响窗、插座与灯的位置，摆位前须考虑这些前置条件。",
+        "status": "verified",
+        "relation": "direct",
+        "candidate_books": [
+          "住宅设计解剖书_增田奏.pdf"
+        ],
+        "excerpt": "床是家具的一种，就像书柜一样，可以依个人喜好将它摆在房间里自己喜欢的位置。其实不能这样随意！首先，床的位置会改变窗户的位置、插座的位置，以及灯的位置。甚至还有很多前置作业必须考虑，否则肯定会出问题。",
+        "book_sha256": "490bb2d48bb8bf26a9c56c8db43b77d2a78138ebbc3746de57425e79a2730c69",
+        "edition": "增田奏著、赵可译，中文版（封面标注日本建筑师40年经验）",
+        "pdf_page": 61,
+        "printed_page": 54,
+        "reviewer": "OCR初筛 + 原图人工核对（Buddy / 2026-11-25）",
+        "note": "性质：人体工程学/设计流程依据。它支持「床摆位需综合考虑窗、插座、灯」，不支持「床头贴墙≤5cm」或任何风水主张。rule_ids 留空是刻意设计，防止引擎把风水规则误标为已核验。"
+      },
+      {
+        "id": "DB-ZH-002",
+        "rule_ids": [],
+        "supported_claim": "床侧面需留通道，双人床紧靠墙壁会导致上下床不便。",
+        "status": "verified",
+        "relation": "direct",
+        "candidate_books": [
+          "住宅设计解剖书_增田奏.pdf"
+        ],
+        "excerpt": "如果将双人床紧靠着墙壁放，有一个人先睡之后，另一个人可能就得每晚瞄准枕头，表演扑上床的特技了。原则上，都是从床侧面上下床的，因此床旁边留出「侧面通道」十分重要。",
+        "book_sha256": "490bb2d48bb8bf26a9c56c8db43b77d2a78138ebbc3746de57425e79a2730c69",
+        "edition": "增田奏著、赵可译，中文版",
+        "pdf_page": 62,
+        "printed_page": 55,
+        "reviewer": "OCR初筛 + 原图人工核对（Buddy / 2026-11-25）",
+        "note": "性质：人体工程学依据。原文说的是床【侧面】不宜紧贴墙，与 FS-BED-001「床头宜有实墙依靠」方向相反、非同一主张，严禁交叉引用。"
+      },
+      {
+        "id": "DB-ZH-003",
+        "rule_ids": [],
+        "supported_claim": "床周围需留通道（最小450mm），并须计入房门与衣橱门的开启动作空间。",
+        "status": "verified",
+        "relation": "direct",
+        "candidate_books": [
+          "住宅设计解剖书_增田奏.pdf"
+        ],
+        "excerpt": "侧面走道要多宽？床周围的基本尺寸：预留这么大的空间就足够了。MIN. 450（mm）可以进出床铺的空间。注意门的动向：记得要将开关房间的门以及衣橱门需要的空间考虑在内。",
+        "book_sha256": "490bb2d48bb8bf26a9c56c8db43b77d2a78138ebbc3746de57425e79a2730c69",
+        "edition": "增田奏著、赵可译，中文版",
+        "pdf_page": 63,
+        "printed_page": 56,
+        "reviewer": "OCR初筛 + 原图人工核对（Buddy / 2026-11-25）",
+        "note": "性质：人体工程学依据。450mm 是书中原图的标注值，属书籍原文；但它支持的是床侧通行净宽，不是项目「门冲床30°视线锥」阈值。原文谈门的【开启动作空间】，与【开门视线直及】是不同主张。若项目采用450mm阈值，须在 rule-chain.json 中改标 source=book_ergonomics 并引用本条，不得继续标 project_convention 又同时声称源自此书。"
+      },
+      {
+        "id": "DB-GB38-001",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "卧室短边净宽不应小于1.80m。",
+        "excerpt": "4.1.1 卧室的使用面积应符合下列规定：1 卧室使用面积不应小于5m²；2 兼起居室的卧室使用面积不应小于9m²；3 卧室短边净宽不应小于1.80m。",
+        "book": "GB55038-2025住宅项目规范.pdf",
+        "book_sha256": "91ef6593dda54013affebb186735ac5df58faf0913748d70e6f377d5259c01b1",
+        "edition": "GB 55038-2025（全文强制）",
+        "pdf_page": 12,
+        "printed_page": 9,
+        "reviewer": "AI OCR辅助+原图核对",
+        "relation": "direct",
+        "note": "原图逐字核对确认；可支撑卧室空间尺度类判定阈值来源（国标）。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB38-002",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "布置便器的卫生间的门不应直接开在厨房内。",
+        "excerpt": "4.1.6 每套住宅的卫生间应至少配置便器、洗浴器、洗面器三件卫生器具或预留安装位置及条件。布置便器的卫生间的门不应直接开在厨房内。便器、洗浴器和洗面器集中配置的卫生间的使用面积不应小于2.5m²。",
+        "book": "GB55038-2025住宅项目规范.pdf",
+        "book_sha256": "91ef6593dda54013affebb186735ac5df58faf0913748d70e6f377d5259c01b1",
+        "edition": "GB 55038-2025（全文强制）",
+        "pdf_page": 12,
+        "printed_page": 9,
+        "reviewer": "AI OCR辅助+原图核对",
+        "relation": "direct",
+        "note": "原图逐字核对确认；厨卫门位关系的强制性国标依据。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB38-003",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "套内入口过道净宽不应小于1.10m；通往卧室、起居室的过道净宽不应小于1.00m；通往厨房、卫生间、贮藏室的过道净宽不应小于0.90m。",
+        "excerpt": "4.1.13 套内入口过道净宽不应小于1.10m；通往卧室、起居室的过道净宽不应小于1.00m；通往厨房、卫生间、贮藏室的过道净宽不应小于0.90m。",
+        "book": "GB55038-2025住宅项目规范.pdf",
+        "book_sha256": "91ef6593dda54013affebb186735ac5df58faf0913748d70e6f377d5259c01b1",
+        "edition": "GB 55038-2025（全文强制）",
+        "pdf_page": 13,
+        "printed_page": 10,
+        "reviewer": "AI OCR辅助+原图核对",
+        "relation": "direct",
+        "note": "原图逐字核对确认；通道净宽分级阈值来源（国标）。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB38-004",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "新建住宅户门通行净宽不应小于0.90m；卧室门通行净宽不应小于0.80m；厨房门和卫生间门通行净宽不应小于0.70m。",
+        "excerpt": "4.1.14 新建住宅建筑户门通行净宽不应小于0.90m，既有住宅建筑改造户门通行净宽不应小于0.80m。卧室门的通行净宽不应小于0.80m，厨房门和卫生间门的通行净宽不应小于0.70m，并应预留无障碍改造的条件。",
+        "book": "GB55038-2025住宅项目规范.pdf",
+        "book_sha256": "91ef6593dda54013affebb186735ac5df58faf0913748d70e6f377d5259c01b1",
+        "edition": "GB 55038-2025（全文强制）",
+        "pdf_page": 13,
+        "printed_page": 10,
+        "reviewer": "AI OCR辅助+原图核对",
+        "relation": "direct",
+        "note": "原图逐字核对确认；门通行净宽阈值来源（国标）。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB5-001",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "厨房宜布置在套内近入口处。",
+        "excerpt": "5.3.2 厨房宜布置在套内近入口处。",
+        "book": "GB50096-2011《住宅设计规范》.pdf",
+        "book_sha256": "017c850e9925e83e47781576be617b792543f5af09293a3fbee66f6e5f0ed8a3",
+        "edition": "GB 50096-2011",
+        "pdf_page": 6,
+        "printed_page": null,
+        "reviewer": "文字层提取+原图核对条文",
+        "relation": "direct",
+        "note": "文字版PDF条文已原图核对；该版式无印刷页码标注，以PDF页码定位。部分条文已由GB55038-2025修订，引用时以新规优先。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB5-002",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "厨房应按炊事操作流程布置；排油烟机的位置应与炉灶位置对应。",
+        "excerpt": "5.3.4 厨房应按炊事操作流程布置。排油烟机的位置应与炉灶位置对应，并应与排气道直接连通。",
+        "book": "GB50096-2011《住宅设计规范》.pdf",
+        "book_sha256": "017c850e9925e83e47781576be617b792543f5af09293a3fbee66f6e5f0ed8a3",
+        "edition": "GB 50096-2011",
+        "pdf_page": 6,
+        "printed_page": null,
+        "reviewer": "文字层提取+原图核对条文",
+        "relation": "direct",
+        "note": "支撑厨房操作动线类规则的国标依据。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB5-003",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "单排布置设备的厨房净宽不应小于1.50m；双排布置设备的厨房其两排设备之间的净距不应小于0.90m。",
+        "excerpt": "5.3.5 单排布置设备的厨房净宽不应小于1.50m；双排布置设备的厨房其两排设备之间的净距不应小于0.90m。",
+        "book": "GB50096-2011《住宅设计规范》.pdf",
+        "book_sha256": "017c850e9925e83e47781576be617b792543f5af09293a3fbee66f6e5f0ed8a3",
+        "edition": "GB 50096-2011",
+        "pdf_page": 6,
+        "printed_page": null,
+        "reviewer": "文字层提取+原图核对条文",
+        "relation": "direct",
+        "note": "厨房设备间距阈值的国标依据（双排净距0.90m）。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB5-004",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "无前室的卫生间的门不应直接开向起居室(厅)或厨房。",
+        "excerpt": "5.4.3 无前室的卫生间的门不应直接开向起居室(厅)或厨房。",
+        "book": "GB50096-2011《住宅设计规范》.pdf",
+        "book_sha256": "017c850e9925e83e47781576be617b792543f5af09293a3fbee66f6e5f0ed8a3",
+        "edition": "GB 50096-2011",
+        "pdf_page": 7,
+        "printed_page": null,
+        "reviewer": "文字层提取",
+        "relation": "direct",
+        "note": "卫生间门位关系国标依据；与GB55038 4.1.6互补（本条覆盖起居室）。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB5-005",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "套内入口过道净宽不宜小于1.20m；通往卧室、起居室(厅)的过道净宽不应小于1.00m；通往厨房、卫生间、贮藏室的过道净宽不应小于0.90m。",
+        "excerpt": "5.7.1 套内入口过道净宽不宜小于1.20m；通往卧室、起居室(厅)的过道净宽不应小于1.00m；通往厨房、卫生间、贮藏室的过道净宽不应小于0.90m。",
+        "book": "GB50096-2011《住宅设计规范》.pdf",
+        "book_sha256": "017c850e9925e83e47781576be617b792543f5af09293a3fbee66f6e5f0ed8a3",
+        "edition": "GB 50096-2011",
+        "pdf_page": 8,
+        "printed_page": null,
+        "reviewer": "文字层提取",
+        "relation": "direct",
+        "note": "2011版过道净宽；GB55038-2025 4.1.13将入口过道调整为1.10m（应），引用以新规优先。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-GB5-006",
+        "source_type": "national_standard",
+        "rule_ids": [],
+        "supported_claim": "各部位门洞最小尺寸：户门1.00m、卧室门0.90m、厨房门0.80m、卫生间门0.70m、阳台门(单扇)0.70m（宽度）。",
+        "excerpt": "5.8.7 各部位门洞的最小尺寸应符合表5.8.7的规定。表5.8.7：共用外门1.20；户(套)门1.00；起居室(厅)门0.90；卧室门0.90；厨房门0.80；卫生间门0.70；阳台门(单扇)0.70（洞口宽度m，高度均2.00）。",
+        "book": "GB50096-2011《住宅设计规范》.pdf",
+        "book_sha256": "017c850e9925e83e47781576be617b792543f5af09293a3fbee66f6e5f0ed8a3",
+        "edition": "GB 50096-2011",
+        "pdf_page": 9,
+        "printed_page": null,
+        "reviewer": "表格为图片，已渲染原图逐项核对数值",
+        "relation": "direct",
+        "note": "门洞尺寸（洞口）与GB55038 4.1.14（通行净宽）口径不同，两者并存。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-ER-001",
+        "source_type": "ergonomics_reference",
+        "rule_ids": [],
+        "supported_claim": "床边通道最小宽度36英寸/914mm；床前活动空间48英寸/1219mm；床至衣橱（带搁板和抽屉）42英寸/1067mm。",
+        "excerpt": "卧室尺寸图中标注：床边通道「最小 36″/914」；床前空余空间/交通空间「48″/1219」；「42″/1067（带搁板和抽屉，由床至衣橱）」。",
+        "book": "人体工程学图解  设计中的人体因素_《人体工程学图解》——家具间距、通道宽度等阈值的标准来源.pdf",
+        "book_sha256": "221f9e2979c3b4886a65da8e9588327d09f623c56df76dfdcf2cf17f7f735b21",
+        "edition": "设计中的人体因素（汉译版）",
+        "pdf_page": 54,
+        "printed_page": 52,
+        "reviewer": "AI OCR辅助+原图核对",
+        "relation": "direct",
+        "note": "原图核对确认（页边标52）；床周边通行宽度的专业图示依据，与住宅设计解剖书MIN 450mm交叉印证。",
+        "status": "verified"
+      },
+      {
+        "id": "DB-ER-002",
+        "source_type": "ergonomics_reference",
+        "rule_ids": [],
+        "supported_claim": "厨房工作走道宽度按单人/双人使用分级：单人约914mm级，双人约1220mm。",
+        "excerpt": "厨房和厕浴间的尺寸图（图31）：走道/工作空间宽度标注865mm(34″)、965mm(38″)、990mm；U型厨房双人位标注48″/1220mm；单人厨房36″/914mm台面。",
+        "book": "人体工程学图解  设计中的人体因素_《人体工程学图解》——家具间距、通道宽度等阈值的标准来源.pdf",
+        "book_sha256": "221f9e2979c3b4886a65da8e9588327d09f623c56df76dfdcf2cf17f7f735b21",
+        "edition": "设计中的人体因素（汉译版）",
+        "pdf_page": 56,
+        "printed_page": 31,
+        "reviewer": "AI OCR辅助+原图核对",
+        "relation": "direct",
+        "note": "原图核对确认（图31）；厨房操作间距的图示依据。",
+        "status": "verified"
+      }
+    ]
+  },
+  "classical_backgrounds": {
+    "purpose": "登记传统典籍中与项目规则对象（门、床、灶、厕、镜）相关的背景性记载。这些内容说明传统风水关注哪些对象、以何种方式判断，均为方位/文化层面的间接背景，不构成对项目几何主张的直接支持。",
+    "boundary": "全部条目经OCR定位、部分页经原图复核印刷页码；状态为 secondary_unverified。不得作为『原书证明』引用，不得据此生成精确页码引文（登记页码为OCR定位结果）。原8条pending主张不因本区块存在而改变状态。",
+    "entries": [
+      {
+        "id": "CB-HDJ-001",
+        "book": "图解黄帝宅经.pdf",
+        "book_sha256": "c8837e82bbc788e49f5d2708fb6e7b0a41d1160149a6b2acb1f056e52a373a28",
+        "pdf_page": 172,
+        "printed_page": 168,
+        "status": "secondary_unverified",
+        "topic": "阳宅六事",
+        "content": "「六事就是居家必需之物，要安放在适宜的位置……内六事者，有门户、卧房、床位、厨房、餐厅、客厅、书房、浴厕、水井、楼梯、阳台、走廊、天井、水沟、假山等。」内六事中动者（大门、宅内行路、房门、书房、床位、香火、厨房）宜居于右方；吉凶判断以八宅大游年吉凶方位为准。",
+        "relevance": "说明传统风水确实将床位、厨房、浴厕、门户列为需审慎布置的核心事项（分类学背景），但其判断方式是方位吉凶，非几何间距。"
+      },
+      {
+        "id": "CB-HDJ-002",
+        "book": "图解黄帝宅经.pdf",
+        "book_sha256": "c8837e82bbc788e49f5d2708fb6e7b0a41d1160149a6b2acb1f056e52a373a28",
+        "pdf_page": 188,
+        "printed_page": 185,
+        "status": "secondary_unverified",
+        "topic": "反光煞（镜对床相关文化出处候选）",
+        "content": "「反光煞：太阳通过水面、玻璃、镜子等，把光线反射到住宅内，特别是卧室之中，会使人精神不集中，反应迟钝。久而久之，就会发生碰撞之伤或血光之灾。」",
+        "relevance": "镜面反射入卧室为凶的传统文化出处候选；讲的是光线反射而非镜子几何相对关系，属文化背景。"
+      },
+      {
+        "id": "CB-TQ-001",
+        "book": "风水探源_何晓昕.pdf",
+        "book_sha256": "64b2d7129b3b30ab2d9248509ae4b76d9edfc659572c601f04da343c9e553b5a",
+        "pdf_page": 115,
+        "printed_page": 108,
+        "status": "secondary_unverified",
+        "topic": "门不相对原则（实证记载）",
+        "content": "「图57 门不相对原则」「『门不直冲巷』原则使住宅能避开喧乱的气氛，而对于冲巷之门则设立种种符镇之物，如泰山石敢当、镇山海、小镜子等等。」",
+        "relevance": "学术著作记录的传统民居实证做法：门避开直冲。讲的是宅门与巷道关系（宅外形），非室内门床关系，属方法学背景。"
+      },
+      {
+        "id": "CB-TQ-002",
+        "book": "风水探源_何晓昕.pdf",
+        "book_sha256": "64b2d7129b3b30ab2d9248509ae4b76d9edfc659572c601f04da343c9e553b5a",
+        "pdf_page": 105,
+        "printed_page": 98,
+        "status": "secondary_unverified",
+        "topic": "八宅法推导宅内功能位置",
+        "content": "「随着住宅朝向的确定，宅的一切属性也被确定，根据《八宅书》或类似的方法便能推导出住宅的平面布置、门的方位乃至空间组织如主厅、卧室、厨房、厕所的位置以及某处高、某处低等等。」",
+        "relevance": "说明卧室/厨房/厕所位置的传统文化推导方式是朝向+八宅方位，非几何间距。"
+      },
+      {
+        "id": "CB-LL-001",
+        "book": "风水理论研究 第2版 (王其亨等著, Wang Qiheng zhu bian, 天津大学建筑系 , 王其亨主编 etc.) (Z-Library)(2).pdf",
+        "book_sha256": "259ef9e10c268e224ad139538f9130522627a671085532ec888e3504435fa8cf",
+        "pdf_page": 156,
+        "printed_page": 150,
+        "status": "secondary_unverified",
+        "topic": "宫室得其度：宜人尺度控制理论",
+        "content": "「凡此『宫室得其度』、『便于生』、『适中』以及『适形』之『美』，等等，实际上都有具体的宜人尺度控制。……以合于人体尺度构成亲切感的室内空间」——梳理《国语》《礼记》《墨子》《论衡》中墨、丈、寻、常、堵等模数尺度概念。",
+        "relevance": "学术理论层面支持『风水传统包含宜人尺度控制』的方向，即本项目几何转译的方法论同源；但讲的是古代模数单位，不含家具间距数值。"
+      },
+      {
+        "id": "CB-YZ-001",
+        "book": "图解阳宅十书.pdf",
+        "book_sha256": "183f7db1d6d52e5659b1b70e301973d2149dce43f18cded9dd23e29830a060ed",
+        "pdf_page": 471,
+        "printed_page": 467,
+        "status": "secondary_unverified",
+        "topic": "厨灶方位论",
+        "content": "「厨灶只宜在宅凶方，不宜在吉方」（原书第七章论宅内形·厨房火说区间）。",
+        "relevance": "阳宅十书对厨灶的讲究是方位吉凶（坐凶向吉、火烧天门），非灶水/灶厕间距。前次核对已确认。"
+      }
+    ],
+    "no_evidence_books": [
+      {
+        "book": "室内设计资料集_张绮曼.pdf",
+        "conclusion": "经目录OCR与定点采样核验：该书为室内陈设艺术图典（装饰、家具风格、图例），不含空间几何间距数据，对8条主张无直接支持。"
+      }
+    ]
+  }
 }

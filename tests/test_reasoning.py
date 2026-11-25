@@ -16,6 +16,27 @@ class EvidenceTests(unittest.TestCase):
         c["relation"]="direct"
         self.assertEqual(evidence_for("R", {"claims":[c]})["verified_claim_ids"],["E1"])
 
+    def test_design_bases_do_not_verify_fengshui_rules(self):
+        """OCR核对出的人体工程学依据不得提升风水规则的引用状态。"""
+        import json
+        reg = json.loads((Path(__file__).resolve().parents[1]/"references"/"evidence-registry.json").read_text(encoding="utf-8"))
+        bases = reg.get("verified_design_bases", {}).get("claims", [])
+        self.assertTrue(bases)
+        for b in bases:
+            self.assertEqual(b.get("status"), "verified")
+            self.assertEqual(b.get("rule_ids"), [])  # 刻意留空，隔离风水规则
+            for k in ("book_sha256", "edition", "pdf_page", "excerpt", "supported_claim", "reviewer"):
+                self.assertTrue(b.get(k), "missing %s in %s" % (k, b["id"]))
+            # printed_page 允许 None（如 GB50096 文字版 PDF 无印刷页码），但必须给出说明
+            if b.get("printed_page") is None:
+                self.assertTrue(b.get("note"), "printed_page 为 None 的条目 %s 必须在 note 中说明原因" % b["id"])
+        # 真实诊断中风水规则仍为未核实
+        for rid in ("FS-BED-001", "FS-BED-002", "FS-KIT-001"):
+            ch = chain_for(rid)
+            self.assertEqual(ch["citation_status"], "unverified")
+            self.assertFalse(ch["verified_claim_ids"])
+        self.assertFalse(evidence_for("FS-BED-001", reg)["allow_generated_quote"])
+
 class ChainTests(unittest.TestCase):
     def test_core_rule_has_chain_with_pending_citation(self):
         """核心规则能取到证据链；登记表中主张为 pending，故引用状态必须为未核实。"""
@@ -41,6 +62,14 @@ class ChainTests(unittest.TestCase):
         self.assertIn("rule_chains", explain(result))
 
 class RecheckTests(unittest.TestCase):
+    def test_missing_data_does_not_resolve_previous_violation(self):
+        base = {"violations": [self.v("FS-BED-001", ["bed", "door"])]}
+        current = {"violations": [], "skipped": [{"rule_id": "FS-BED-001"}]}
+        diff = compare_results(base, current)
+        self.assertEqual(diff["summary"]["resolved"], 0)
+        self.assertEqual(diff["summary"]["unassessed"], 1)
+        self.assertEqual(diff["unassessed"][0]["objects"], ["bed", "door"])
+
     @staticmethod
     def v(rid, objs):
         return {"rule_id": rid, "objects": objs, "name": rid, "object_labels": objs}

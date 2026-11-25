@@ -135,10 +135,17 @@ def compare_results(baseline, current):
     """
     base = {_sig(v): v for v in baseline.get("violations", [])}
     curr = {_sig(v): v for v in current.get("violations", [])}
+    curr_skip = {k.get("rule_id", "") for k in current.get("skipped", [])}
+    unassessed = [{"rule_id": v["rule_id"], "name": v.get("name", ""),
+                   "objects": v.get("objects", []),
+                   "object_labels": v.get("object_labels", [])}
+                  for sig, v in sorted(base.items())
+                  if sig not in curr and v["rule_id"] in curr_skip]
     resolved = [{"rule_id": v["rule_id"], "name": v.get("name", ""),
                  "objects": v.get("objects", []),
                  "object_labels": v.get("object_labels", [])}
-                for sig, v in sorted(base.items()) if sig not in curr]
+                for sig, v in sorted(base.items())
+                if sig not in curr and v["rule_id"] not in curr_skip]
     remaining = [{"rule_id": v["rule_id"], "name": v.get("name", ""),
                   "objects": v.get("objects", []),
                   "object_labels": v.get("object_labels", [])}
@@ -154,6 +161,7 @@ def compare_results(baseline, current):
         "baseline_violations": len(base),
         "current_violations": len(curr),
         "resolved": len(resolved),
+        "unassessed": len(unassessed),
         "remaining": len(remaining),
         "new": len(new),
         "newly_skipped": sorted(curr_skip - base_skip),
@@ -162,6 +170,7 @@ def compare_results(baseline, current):
     return {
         "summary": summary,
         "resolved": resolved,
+        "unassessed": unassessed,
         "remaining": remaining,
         "new": new,
         "note": "对比基于规则 ID 与对象集合的几何签名；调整方案未经全量复检前，不声称其已改善。",
